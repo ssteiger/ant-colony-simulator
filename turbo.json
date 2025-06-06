@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+   "build": {
+    "dependsOn": ["^build"],
+    "outputs": [".next/**", "!.next/cache/**"]
+   },
+   "dev:db": {
+    "cache": false
+   },
+   "gen:types": {
+    "dependsOn": ["dev:db"],
+    "cache": false
+   },
+   "dev:backend": {
+    "dependsOn": ["dev:db"],
+    "cache": false
+   },
+   "dev:frontend": {
+    "dependsOn": ["dev:db"],
+    "cache": false
+   },
+   "dev": {
+    "dependsOn": ["env:check", "dev:db", "gen:types", "dev:backend", "dev:frontend"],
+    "cache": false
+   },
+   "env:check": {
+    "cache": false,
+    "persistent": false
+   }
+  }
+ }
+ 

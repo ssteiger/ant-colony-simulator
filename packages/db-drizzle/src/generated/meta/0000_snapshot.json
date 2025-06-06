@@ -1,0 +1,4147 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.food_sources": {
+      "name": "food_sources",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "food_type": {
+          "name": "food_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_amount": {
+          "name": "max_amount",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "regeneration_rate": {
+          "name": "regeneration_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "discovery_difficulty": {
+          "name": "discovery_difficulty",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.5'"
+        },
+        "nutritional_value": {
+          "name": "nutritional_value",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "spoilage_rate": {
+          "name": "spoilage_rate",
+          "type": "numeric(6, 4)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "is_renewable": {
+          "name": "is_renewable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_food_sources_position": {
+          "name": "idx_food_sources_position",
+          "columns": [
+            {
+              "expression": "position_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "position_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_food_sources_simulation": {
+          "name": "idx_food_sources_simulation",
+          "columns": [
+            {
+              "expression": "simulation_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "food_sources_simulation_id_fkey": {
+          "name": "food_sources_simulation_id_fkey",
+          "tableFrom": "food_sources",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.colonies": {
+      "name": "colonies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'30.0'"
+        },
+        "population": {
+          "name": "population",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "color_hue": {
+          "name": "color_hue",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "resources": {
+          "name": "resources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "nest_level": {
+          "name": "nest_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "territory_radius": {
+          "name": "territory_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'100.0'"
+        },
+        "aggression_level": {
+          "name": "aggression_level",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.5'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "colonies_simulation_id_fkey": {
+          "name": "colonies_simulation_id_fkey",
+          "tableFrom": "colonies",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.simulations": {
+      "name": "simulations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "world_width": {
+          "name": "world_width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 800
+        },
+        "world_height": {
+          "name": "world_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 600
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "simulation_speed": {
+          "name": "simulation_speed",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1.0'"
+        },
+        "current_tick": {
+          "name": "current_tick",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "season": {
+          "name": "season",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'spring'"
+        },
+        "time_of_day": {
+          "name": "time_of_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 720
+        },
+        "weather_type": {
+          "name": "weather_type",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'clear'"
+        },
+        "weather_intensity": {
+          "name": "weather_intensity",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.0'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ants": {
+      "name": "ants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "colony_id": {
+          "name": "colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ant_type_id": {
+          "name": "ant_type_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "angle": {
+          "name": "angle",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "current_speed": {
+          "name": "current_speed",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "health": {
+          "name": "health",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "age_ticks": {
+          "name": "age_ticks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "state": {
+          "name": "state",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'wandering'"
+        },
+        "target_x": {
+          "name": "target_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_y": {
+          "name": "target_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "carried_resources": {
+          "name": "carried_resources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'::jsonb"
+        },
+        "traits": {
+          "name": "traits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "energy": {
+          "name": "energy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "mood": {
+          "name": "mood",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'neutral'"
+        },
+        "last_updated": {
+          "name": "last_updated",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_ants_colony_state": {
+          "name": "idx_ants_colony_state",
+          "columns": [
+            {
+              "expression": "colony_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "state",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_ants_position": {
+          "name": "idx_ants_position",
+          "columns": [
+            {
+              "expression": "position_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "position_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ants_colony_id_fkey": {
+          "name": "ants_colony_id_fkey",
+          "tableFrom": "ants",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ants_ant_type_id_fkey": {
+          "name": "ants_ant_type_id_fkey",
+          "tableFrom": "ants",
+          "tableTo": "ant_types",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "ant_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ant_types": {
+      "name": "ant_types",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_speed": {
+          "name": "base_speed",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "base_strength": {
+          "name": "base_strength",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "base_health": {
+          "name": "base_health",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "base_size": {
+          "name": "base_size",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'3.0'"
+        },
+        "lifespan_ticks": {
+          "name": "lifespan_ticks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50000
+        },
+        "carrying_capacity": {
+          "name": "carrying_capacity",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color_hue": {
+          "name": "color_hue",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "special_abilities": {
+          "name": "special_abilities",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "food_preferences": {
+          "name": "food_preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ant_types_name_key": {
+          "columns": [
+            "name"
+          ],
+          "nullsNotDistinct": false,
+          "name": "ant_types_name_key"
+        }
+      },
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.pheromone_trails": {
+      "name": "pheromone_trails",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "colony_id": {
+          "name": "colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trail_type": {
+          "name": "trail_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "strength": {
+          "name": "strength",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decay_rate": {
+          "name": "decay_rate",
+          "type": "numeric(6, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.005'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_ant_id": {
+          "name": "source_ant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_food_id": {
+          "name": "target_food_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_pheromone_trails_colony": {
+          "name": "idx_pheromone_trails_colony",
+          "columns": [
+            {
+              "expression": "colony_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "trail_type",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_pheromone_trails_expires": {
+          "name": "idx_pheromone_trails_expires",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "timestamptz_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_pheromone_trails_position": {
+          "name": "idx_pheromone_trails_position",
+          "columns": [
+            {
+              "expression": "position_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "position_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pheromone_trails_colony_id_fkey": {
+          "name": "pheromone_trails_colony_id_fkey",
+          "tableFrom": "pheromone_trails",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pheromone_trails_source_ant_id_fkey": {
+          "name": "pheromone_trails_source_ant_id_fkey",
+          "tableFrom": "pheromone_trails",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "source_ant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pheromone_trails_target_food_id_fkey": {
+          "name": "pheromone_trails_target_food_id_fkey",
+          "tableFrom": "pheromone_trails",
+          "tableTo": "food_sources",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "target_food_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.obstacles": {
+      "name": "obstacles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "obstacle_type": {
+          "name": "obstacle_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shape": {
+          "name": "shape",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "width": {
+          "name": "width",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height": {
+          "name": "height",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "polygon_points": {
+          "name": "polygon_points",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_passable": {
+          "name": "is_passable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "movement_cost": {
+          "name": "movement_cost",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'2.0'"
+        },
+        "affects_pheromones": {
+          "name": "affects_pheromones",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "visual_properties": {
+          "name": "visual_properties",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "obstacles_simulation_id_fkey": {
+          "name": "obstacles_simulation_id_fkey",
+          "tableFrom": "obstacles",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.predators": {
+      "name": "predators",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "predator_type": {
+          "name": "predator_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "angle": {
+          "name": "angle",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "speed": {
+          "name": "speed",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.5'"
+        },
+        "detection_radius": {
+          "name": "detection_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'40.0'"
+        },
+        "attack_radius": {
+          "name": "attack_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'10.0'"
+        },
+        "health": {
+          "name": "health",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50
+        },
+        "hunger": {
+          "name": "hunger",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "state": {
+          "name": "state",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'patrolling'"
+        },
+        "target_ant_id": {
+          "name": "target_ant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_hunt_tick": {
+          "name": "last_hunt_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "territory_center_x": {
+          "name": "territory_center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "territory_center_y": {
+          "name": "territory_center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "territory_radius": {
+          "name": "territory_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'80.0'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "predators_simulation_id_fkey": {
+          "name": "predators_simulation_id_fkey",
+          "tableFrom": "predators",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "predators_target_ant_id_fkey": {
+          "name": "predators_target_ant_id_fkey",
+          "tableFrom": "predators",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "target_ant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.simulation_events": {
+      "name": "simulation_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_tick": {
+          "name": "start_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_ticks": {
+          "name": "duration_ticks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effects": {
+          "name": "effects",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_simulation_events_active": {
+          "name": "idx_simulation_events_active",
+          "columns": [
+            {
+              "expression": "simulation_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "bool_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "is_active",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "bool_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "simulation_events_simulation_id_fkey": {
+          "name": "simulation_events_simulation_id_fkey",
+          "tableFrom": "simulation_events",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ant_interactions": {
+      "name": "ant_interactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ant1_id": {
+          "name": "ant1_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ant2_id": {
+          "name": "ant2_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "interaction_type": {
+          "name": "interaction_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "damage_dealt": {
+          "name": "damage_dealt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "resources_exchanged": {
+          "name": "resources_exchanged",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tick_occurred": {
+          "name": "tick_occurred",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ant_interactions_ant1_id_fkey": {
+          "name": "ant_interactions_ant1_id_fkey",
+          "tableFrom": "ant_interactions",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "ant1_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ant_interactions_ant2_id_fkey": {
+          "name": "ant_interactions_ant2_id_fkey",
+          "tableFrom": "ant_interactions",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "ant2_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ant_genetics": {
+      "name": "ant_genetics",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ant_id": {
+          "name": "ant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent1_id": {
+          "name": "parent1_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent2_id": {
+          "name": "parent2_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generation": {
+          "name": "generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "genes": {
+          "name": "genes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fitness_score": {
+          "name": "fitness_score",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mutations": {
+          "name": "mutations",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ant_genetics_ant_id_fkey": {
+          "name": "ant_genetics_ant_id_fkey",
+          "tableFrom": "ant_genetics",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "ant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ant_genetics_parent1_id_fkey": {
+          "name": "ant_genetics_parent1_id_fkey",
+          "tableFrom": "ant_genetics",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "parent1_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ant_genetics_parent2_id_fkey": {
+          "name": "ant_genetics_parent2_id_fkey",
+          "tableFrom": "ant_genetics",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "parent2_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.colony_upgrades": {
+      "name": "colony_upgrades",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "colony_id": {
+          "name": "colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "upgrade_type": {
+          "name": "upgrade_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "level": {
+          "name": "level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "cost_paid": {
+          "name": "cost_paid",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effects": {
+          "name": "effects",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unlocked_at": {
+          "name": "unlocked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "colony_upgrades_colony_id_fkey": {
+          "name": "colony_upgrades_colony_id_fkey",
+          "tableFrom": "colony_upgrades",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.simulation_stats": {
+      "name": "simulation_stats",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tick_number": {
+          "name": "tick_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_ants": {
+          "name": "total_ants",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_food_collected": {
+          "name": "total_food_collected",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_distance_traveled": {
+          "name": "total_distance_traveled",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "pheromone_trail_count": {
+          "name": "pheromone_trail_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "active_combats": {
+          "name": "active_combats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "weather_effects_active": {
+          "name": "weather_effects_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "average_ant_health": {
+          "name": "average_ant_health",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dominant_colony_id": {
+          "name": "dominant_colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_simulation_stats_tick": {
+          "name": "idx_simulation_stats_tick",
+          "columns": [
+            {
+              "expression": "simulation_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "int4_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "tick_number",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "int4_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "simulation_stats_simulation_id_fkey": {
+          "name": "simulation_stats_simulation_id_fkey",
+          "tableFrom": "simulation_stats",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "simulation_stats_dominant_colony_id_fkey": {
+          "name": "simulation_stats_dominant_colony_id_fkey",
+          "tableFrom": "simulation_stats",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "dominant_colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.scenario_templates": {
+      "name": "scenario_templates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creator_id": {
+          "name": "creator_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "world_config": {
+          "name": "world_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "difficulty_rating": {
+          "name": "difficulty_rating",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1
+        },
+        "tags": {
+          "name": "tags",
+          "type": "varchar(255)[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_public": {
+          "name": "is_public",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "play_count": {
+          "name": "play_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "average_rating": {
+          "name": "average_rating",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.plants": {
+      "name": "plants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plant_type": {
+          "name": "plant_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "species": {
+          "name": "species",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'5.0'"
+        },
+        "max_size": {
+          "name": "max_size",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'20.0'"
+        },
+        "growth_rate": {
+          "name": "growth_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.01'"
+        },
+        "health": {
+          "name": "health",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'100.0'"
+        },
+        "age_ticks": {
+          "name": "age_ticks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "root_radius": {
+          "name": "root_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'15.0'"
+        },
+        "canopy_radius": {
+          "name": "canopy_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'10.0'"
+        },
+        "fruit_production_rate": {
+          "name": "fruit_production_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "oxygen_production": {
+          "name": "oxygen_production",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.1'"
+        },
+        "water_requirement": {
+          "name": "water_requirement",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "nutrient_requirements": {
+          "name": "nutrient_requirements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "symbiotic_species": {
+          "name": "symbiotic_species",
+          "type": "varchar(50)[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seasonal_behavior": {
+          "name": "seasonal_behavior",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_plants_position": {
+          "name": "idx_plants_position",
+          "columns": [
+            {
+              "expression": "position_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "position_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_plants_simulation": {
+          "name": "idx_plants_simulation",
+          "columns": [
+            {
+              "expression": "simulation_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "plant_type",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plants_simulation_id_fkey": {
+          "name": "plants_simulation_id_fkey",
+          "tableFrom": "plants",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.decomposers": {
+      "name": "decomposers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decomposer_type": {
+          "name": "decomposer_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'3.0'"
+        },
+        "efficiency": {
+          "name": "efficiency",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.1'"
+        },
+        "nutrient_output": {
+          "name": "nutrient_output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_material": {
+          "name": "target_material",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "population": {
+          "name": "population",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "optimal_temperature": {
+          "name": "optimal_temperature",
+          "type": "numeric(4, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "optimal_ph": {
+          "name": "optimal_ph",
+          "type": "numeric(3, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_decomposers_position": {
+          "name": "idx_decomposers_position",
+          "columns": [
+            {
+              "expression": "position_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "position_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "decomposers_simulation_id_fkey": {
+          "name": "decomposers_simulation_id_fkey",
+          "tableFrom": "decomposers",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.species": {
+      "name": "species",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "species_type": {
+          "name": "species_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "species_name": {
+          "name": "species_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "population": {
+          "name": "population",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "mobility": {
+          "name": "mobility",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diet_type": {
+          "name": "diet_type",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "symbiotic_relationships": {
+          "name": "symbiotic_relationships",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "territory_radius": {
+          "name": "territory_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'20.0'"
+        },
+        "reproduction_rate": {
+          "name": "reproduction_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.001'"
+        },
+        "mortality_rate": {
+          "name": "mortality_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.001'"
+        },
+        "food_requirements": {
+          "name": "food_requirements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "environmental_preferences": {
+          "name": "environmental_preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_species_position": {
+          "name": "idx_species_position",
+          "columns": [
+            {
+              "expression": "position_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "position_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "species_simulation_id_fkey": {
+          "name": "species_simulation_id_fkey",
+          "tableFrom": "species",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.diseases": {
+      "name": "diseases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "disease_name": {
+          "name": "disease_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pathogen_type": {
+          "name": "pathogen_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transmission_method": {
+          "name": "transmission_method",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transmission_rate": {
+          "name": "transmission_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.1'"
+        },
+        "incubation_period": {
+          "name": "incubation_period",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "mortality_rate": {
+          "name": "mortality_rate",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.05'"
+        },
+        "recovery_rate": {
+          "name": "recovery_rate",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.1'"
+        },
+        "immunity_duration": {
+          "name": "immunity_duration",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "affected_species": {
+          "name": "affected_species",
+          "type": "varchar(30)[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "symptoms": {
+          "name": "symptoms",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "environmental_survival": {
+          "name": "environmental_survival",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1000
+        },
+        "mutation_rate": {
+          "name": "mutation_rate",
+          "type": "numeric(6, 4)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.0001'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "diseases_simulation_id_fkey": {
+          "name": "diseases_simulation_id_fkey",
+          "tableFrom": "diseases",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.infections": {
+      "name": "infections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "disease_id": {
+          "name": "disease_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_id": {
+          "name": "host_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_type": {
+          "name": "host_type",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "infection_stage": {
+          "name": "infection_stage",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "infected_at_tick": {
+          "name": "infected_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "symptoms_start_tick": {
+          "name": "symptoms_start_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recovery_tick": {
+          "name": "recovery_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transmission_events": {
+          "name": "transmission_events",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "strain_mutations": {
+          "name": "strain_mutations",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_infections_host": {
+          "name": "idx_infections_host",
+          "columns": [
+            {
+              "expression": "host_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "host_type",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "infection_stage",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "infections_disease_id_fkey": {
+          "name": "infections_disease_id_fkey",
+          "tableFrom": "infections",
+          "tableTo": "diseases",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "disease_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.ant_castes": {
+      "name": "ant_castes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "caste_name": {
+          "name": "caste_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "specialization": {
+          "name": "specialization",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_attributes": {
+          "name": "base_attributes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "special_abilities": {
+          "name": "special_abilities",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "training_requirements": {
+          "name": "training_requirements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "population_cap_percentage": {
+          "name": "population_cap_percentage",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.1'"
+        },
+        "unlock_conditions": {
+          "name": "unlock_conditions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "maintenance_cost": {
+          "name": "maintenance_cost",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ant_castes_caste_name_key": {
+          "columns": [
+            "caste_name"
+          ],
+          "nullsNotDistinct": false,
+          "name": "ant_castes_caste_name_key"
+        }
+      },
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.colony_relations": {
+      "name": "colony_relations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "colony1_id": {
+          "name": "colony1_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "colony2_id": {
+          "name": "colony2_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "relationship_type": {
+          "name": "relationship_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trust_level": {
+          "name": "trust_level",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.0'"
+        },
+        "trade_agreements": {
+          "name": "trade_agreements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "military_pacts": {
+          "name": "military_pacts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "territorial_agreements": {
+          "name": "territorial_agreements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_interaction_tick": {
+          "name": "last_interaction_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relationship_history": {
+          "name": "relationship_history",
+          "type": "jsonb[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "established_at": {
+          "name": "established_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_colony_relations_colonies": {
+          "name": "idx_colony_relations_colonies",
+          "columns": [
+            {
+              "expression": "colony1_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "colony2_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "colony_relations_colony1_id_fkey": {
+          "name": "colony_relations_colony1_id_fkey",
+          "tableFrom": "colony_relations",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony1_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "colony_relations_colony2_id_fkey": {
+          "name": "colony_relations_colony2_id_fkey",
+          "tableFrom": "colony_relations",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony2_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "colony_relations_colony1_id_colony2_id_key": {
+          "columns": [
+            "colony1_id",
+            "colony2_id"
+          ],
+          "nullsNotDistinct": false,
+          "name": "colony_relations_colony1_id_colony2_id_key"
+        }
+      },
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.colony_culture": {
+      "name": "colony_culture",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "colony_id": {
+          "name": "colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cultural_trait": {
+          "name": "cultural_trait",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trait_strength": {
+          "name": "trait_strength",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "origin_story": {
+          "name": "origin_story",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "behavioral_modifiers": {
+          "name": "behavioral_modifiers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ritual_behaviors": {
+          "name": "ritual_behaviors",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "knowledge_traditions": {
+          "name": "knowledge_traditions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "innovation_rate": {
+          "name": "innovation_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.1'"
+        },
+        "influence_radius": {
+          "name": "influence_radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'50.0'"
+        },
+        "developed_at_tick": {
+          "name": "developed_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "colony_culture_colony_id_fkey": {
+          "name": "colony_culture_colony_id_fkey",
+          "tableFrom": "colony_culture",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.espionage_missions": {
+      "name": "espionage_missions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "spy_ant_id": {
+          "name": "spy_ant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin_colony_id": {
+          "name": "origin_colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_colony_id": {
+          "name": "target_colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mission_type": {
+          "name": "mission_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mission_status": {
+          "name": "mission_status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planning'"
+        },
+        "objectives": {
+          "name": "objectives",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cover_identity": {
+          "name": "cover_identity",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discovery_risk": {
+          "name": "discovery_risk",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.1'"
+        },
+        "intelligence_gathered": {
+          "name": "intelligence_gathered",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resources_stolen": {
+          "name": "resources_stolen",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at_tick": {
+          "name": "started_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at_tick": {
+          "name": "completed_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "success_rating": {
+          "name": "success_rating",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_espionage_missions_active": {
+          "name": "idx_espionage_missions_active",
+          "columns": [
+            {
+              "expression": "mission_status",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "target_colony_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "espionage_missions_spy_ant_id_fkey": {
+          "name": "espionage_missions_spy_ant_id_fkey",
+          "tableFrom": "espionage_missions",
+          "tableTo": "ants",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "spy_ant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "espionage_missions_origin_colony_id_fkey": {
+          "name": "espionage_missions_origin_colony_id_fkey",
+          "tableFrom": "espionage_missions",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "origin_colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "espionage_missions_target_colony_id_fkey": {
+          "name": "espionage_missions_target_colony_id_fkey",
+          "tableFrom": "espionage_missions",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "target_colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.migration_patterns": {
+      "name": "migration_patterns",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "colony_id": {
+          "name": "colony_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pattern_type": {
+          "name": "pattern_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trigger_conditions": {
+          "name": "trigger_conditions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "destination_preferences": {
+          "name": "destination_preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "migration_routes": {
+          "name": "migration_routes",
+          "type": "jsonb[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preparation_time": {
+          "name": "preparation_time",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 1000
+        },
+        "migration_speed": {
+          "name": "migration_speed",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.5'"
+        },
+        "survival_rate": {
+          "name": "survival_rate",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.9'"
+        },
+        "last_migration_tick": {
+          "name": "last_migration_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seasonal_schedule": {
+          "name": "seasonal_schedule",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "migration_patterns_colony_id_fkey": {
+          "name": "migration_patterns_colony_id_fkey",
+          "tableFrom": "migration_patterns",
+          "tableTo": "colonies",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "colony_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.water_bodies": {
+      "name": "water_bodies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "water_type": {
+          "name": "water_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shape": {
+          "name": "shape",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "width": {
+          "name": "width",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "length": {
+          "name": "length",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "polygon_points": {
+          "name": "polygon_points",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "depth": {
+          "name": "depth",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "flow_direction": {
+          "name": "flow_direction",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flow_speed": {
+          "name": "flow_speed",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "water_quality": {
+          "name": "water_quality",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1.0'"
+        },
+        "evaporation_rate": {
+          "name": "evaporation_rate",
+          "type": "numeric(6, 4)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.001'"
+        },
+        "is_seasonal": {
+          "name": "is_seasonal",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "temperature": {
+          "name": "temperature",
+          "type": "numeric(4, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_water_bodies_position": {
+          "name": "idx_water_bodies_position",
+          "columns": [
+            {
+              "expression": "center_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "center_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "water_bodies_simulation_id_fkey": {
+          "name": "water_bodies_simulation_id_fkey",
+          "tableFrom": "water_bodies",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.fire_zones": {
+      "name": "fire_zones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'10.0'"
+        },
+        "intensity": {
+          "name": "intensity",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "fuel_remaining": {
+          "name": "fuel_remaining",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'100.0'"
+        },
+        "spread_rate": {
+          "name": "spread_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.1'"
+        },
+        "wind_influence": {
+          "name": "wind_influence",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.5'"
+        },
+        "started_at_tick": {
+          "name": "started_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "extinguished_at_tick": {
+          "name": "extinguished_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ignition_source": {
+          "name": "ignition_source",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suppression_efforts": {
+          "name": "suppression_efforts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "casualties": {
+          "name": "casualties",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_fire_zones_active": {
+          "name": "idx_fire_zones_active",
+          "columns": [
+            {
+              "expression": "simulation_id",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "where": "(extinguished_at_tick IS NULL)",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fire_zones_simulation_id_fkey": {
+          "name": "fire_zones_simulation_id_fkey",
+          "tableFrom": "fire_zones",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.soil_zones": {
+      "name": "soil_zones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zone_name": {
+          "name": "zone_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'50.0'"
+        },
+        "soil_type": {
+          "name": "soil_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ph_level": {
+          "name": "ph_level",
+          "type": "numeric(3, 1)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'7.0'"
+        },
+        "nutrients": {
+          "name": "nutrients",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "moisture_content": {
+          "name": "moisture_content",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.5'"
+        },
+        "compaction": {
+          "name": "compaction",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.3'"
+        },
+        "temperature": {
+          "name": "temperature",
+          "type": "numeric(4, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "microbial_activity": {
+          "name": "microbial_activity",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.5'"
+        },
+        "drainage_rate": {
+          "name": "drainage_rate",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.1'"
+        },
+        "contamination_level": {
+          "name": "contamination_level",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.0'"
+        },
+        "fertility_score": {
+          "name": "fertility_score",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_updated_tick": {
+          "name": "last_updated_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_soil_zones_position": {
+          "name": "idx_soil_zones_position",
+          "columns": [
+            {
+              "expression": "center_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "center_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "soil_zones_simulation_id_fkey": {
+          "name": "soil_zones_simulation_id_fkey",
+          "tableFrom": "soil_zones",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.climate_zones": {
+      "name": "climate_zones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zone_name": {
+          "name": "zone_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'75.0'"
+        },
+        "temperature": {
+          "name": "temperature",
+          "type": "numeric(4, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "humidity": {
+          "name": "humidity",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wind_speed": {
+          "name": "wind_speed",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "wind_direction": {
+          "name": "wind_direction",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "light_level": {
+          "name": "light_level",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "air_pressure": {
+          "name": "air_pressure",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1013.25'"
+        },
+        "seasonal_variations": {
+          "name": "seasonal_variations",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "elevation": {
+          "name": "elevation",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "vegetation_cover": {
+          "name": "vegetation_cover",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0.5'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "idx_climate_zones_position": {
+          "name": "idx_climate_zones_position",
+          "columns": [
+            {
+              "expression": "center_x",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            },
+            {
+              "expression": "center_y",
+              "asc": true,
+              "nulls": "last",
+              "opclass": "numeric_ops",
+              "isExpression": false
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "climate_zones_simulation_id_fkey": {
+          "name": "climate_zones_simulation_id_fkey",
+          "tableFrom": "climate_zones",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.weather_systems": {
+      "name": "weather_systems",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weather_type": {
+          "name": "weather_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_x": {
+          "name": "center_x",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "center_y": {
+          "name": "center_y",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "radius": {
+          "name": "radius",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intensity": {
+          "name": "intensity",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0'"
+        },
+        "movement_vector_x": {
+          "name": "movement_vector_x",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "movement_vector_y": {
+          "name": "movement_vector_y",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "duration_remaining": {
+          "name": "duration_remaining",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effects": {
+          "name": "effects",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pressure_change": {
+          "name": "pressure_change",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at_tick": {
+          "name": "started_at_tick",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "forecast_accuracy": {
+          "name": "forecast_accuracy",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1.0'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "weather_systems_simulation_id_fkey": {
+          "name": "weather_systems_simulation_id_fkey",
+          "tableFrom": "weather_systems",
+          "tableTo": "simulations",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "simulation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {
+    "public.ecosystem_health": {
+      "name": "ecosystem_health",
+      "schema": "public",
+      "columns": {
+        "simulation_id": {
+          "name": "simulation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_colonies": {
+          "name": "active_colonies",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_ants": {
+          "name": "total_ants",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plant_count": {
+          "name": "plant_count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "other_species_count": {
+          "name": "other_species_count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_diseases": {
+          "name": "active_diseases",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avg_soil_fertility": {
+          "name": "avg_soil_fertility",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "water_sources": {
+          "name": "water_sources",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_fires": {
+          "name": "active_fires",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avg_temperature": {
+          "name": "avg_temperature",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avg_humidity": {
+          "name": "avg_humidity",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "isExisting": false,
+      "definition": "SELECT s.id AS simulation_id, s.name, count(DISTINCT c.id) AS active_colonies, count(DISTINCT a.id) AS total_ants, count(DISTINCT p.id) AS plant_count, count(DISTINCT sp.id) AS other_species_count, count(DISTINCT d.id) AS active_diseases, avg(sz.fertility_score) AS avg_soil_fertility, count(DISTINCT wb.id) AS water_sources, count(DISTINCT fz.id) AS active_fires, avg(cz.temperature) AS avg_temperature, avg(cz.humidity) AS avg_humidity FROM simulations s LEFT JOIN colonies c ON s.id = c.simulation_id AND c.is_active = true LEFT JOIN ants a ON c.id = a.colony_id AND a.state::text <> 'dead'::text LEFT JOIN plants p ON s.id = p.simulation_id LEFT JOIN species sp ON s.id = sp.simulation_id LEFT JOIN diseases d ON s.id = d.simulation_id LEFT JOIN soil_zones sz ON s.id = sz.simulation_id LEFT JOIN water_bodies wb ON s.id = wb.simulation_id LEFT JOIN fire_zones fz ON s.id = fz.simulation_id AND fz.extinguished_at_tick IS NULL LEFT JOIN climate_zones cz ON s.id = cz.simulation_id GROUP BY s.id, s.name",
+      "materialized": false
+    },
+    "public.colony_performance": {
+      "name": "colony_performance",
+      "schema": "public",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "population": {
+          "name": "population",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resources": {
+          "name": "resources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nearby_food_sources": {
+          "name": "nearby_food_sources",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avg_ant_health": {
+          "name": "avg_ant_health",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ants_with_food": {
+          "name": "ants_with_food",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_pheromone_trails": {
+          "name": "active_pheromone_trails",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "isExisting": false,
+      "definition": "SELECT c.id, c.name, c.population, c.resources, count(DISTINCT fs.id) AS nearby_food_sources, avg(a.health) AS avg_ant_health, count( CASE WHEN a.state::text = 'carrying_food'::text THEN 1 ELSE NULL::integer END) AS ants_with_food, count(DISTINCT pt.id) AS active_pheromone_trails FROM colonies c LEFT JOIN ants a ON c.id = a.colony_id AND a.state::text <> 'dead'::text LEFT JOIN food_sources fs ON (fs.simulation_id IN ( SELECT colonies.simulation_id FROM colonies WHERE colonies.id = c.id)) AND sqrt(power(fs.position_x - c.center_x, 2::numeric) + power(fs.position_y - c.center_y, 2::numeric)) < c.territory_radius LEFT JOIN pheromone_trails pt ON c.id = pt.colony_id AND pt.strength > 0.1 GROUP BY c.id, c.name, c.population, c.resources",
+      "materialized": false
+    }
+  },
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {
+      "scenario_templates": {
+        "columns": {
+          "tags": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "character varying(255)"
+          }
+        }
+      },
+      "plants": {
+        "columns": {
+          "symbiotic_species": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "character varying(50)"
+          }
+        }
+      },
+      "diseases": {
+        "columns": {
+          "affected_species": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "character varying(30)"
+          }
+        }
+      },
+      "colony_relations": {
+        "columns": {
+          "relationship_history": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "jsonb"
+          }
+        }
+      },
+      "migration_patterns": {
+        "columns": {
+          "migration_routes": {
+            "isArray": true,
+            "dimensions": 1,
+            "rawType": "jsonb"
+          }
+        }
+      }
+    }
+  }
+}

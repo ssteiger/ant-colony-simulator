@@ -1,0 +1,26 @@
+{
+	"name": "ant-colony-simulator",
+	"description": "A simulation of ant colonies.",
+	"version": "0.1.0",
+	"authors": ["Soeren Steiger <soeren@memberr.de>"],
+	"private": true,
+	"packageManager": "npm@10.8.2",
+	"workspaces": ["apps/*", "packages/*"],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ssteiger/ant-colony-simulator"
+	},
+	"scripts": {
+		"build": "turbo run build",
+		"dev": "turbo run dev --parallel",
+		"dev:db": "cd apps/supabase && npx supabase start",
+		"dev:backend": "turbo run dev --filter=@ant-colony-simulator/backend",
+		"dev:frontend": "turbo run dev --filter=@ant-colony-simulator/frontend",
+		"gen:types": "cd apps/supabase && npm run gen:types",
+		"env:check": "node scripts.js env:check"
+	},
+	"devDependencies": {
+		"supabase": "^2.20.5",
+		"turbo": "^2.4.4"
+	}
+}
