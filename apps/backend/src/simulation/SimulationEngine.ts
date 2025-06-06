@@ -15,12 +15,17 @@ export class SimulationEngine {
 
   constructor(supabase: SupabaseClient<Database>) {
     this.supabase = supabase
+    console.log('⚙️ SimulationEngine: Constructor initialized')
   }
 
   async start(simulationId: string, options: SimulationEngineOptions): Promise<void> {
     if (this.isRunning) {
+      console.warn('⚙️ SimulationEngine: Engine is already running')
       throw new Error('Simulation engine is already running')
     }
+
+    console.log(`⚙️ SimulationEngine: Starting engine for simulation ${simulationId}`)
+    console.log(`⚙️ SimulationEngine: Tick interval: ${options.tickInterval}ms`)
 
     this.simulationId = simulationId
     
@@ -34,42 +39,60 @@ export class SimulationEngine {
     this.currentTick = simulation?.current_tick || 0
     this.isRunning = true
 
-    console.log(`Starting simulation engine at tick ${this.currentTick}`)
+    console.log(`⚙️ SimulationEngine: Starting at tick ${this.currentTick}`)
 
     // Start the simulation loop
     this.intervalId = setInterval(async () => {
+      const tickStartTime = Date.now()
       try {
         this.currentTick++
-        console.log(`Simulation tick ${this.currentTick} starting...`)
+        console.log(`⚙️ SimulationEngine: ⏰ Tick ${this.currentTick} starting...`)
+        
         await options.onTick(this.currentTick)
+        
+        const tickDuration = Date.now() - tickStartTime
         if (this.currentTick % 10 === 0) {
-          console.log(`Completed tick ${this.currentTick}`)
+          console.log(`⚙️ SimulationEngine: ✅ Tick ${this.currentTick} completed in ${tickDuration}ms`)
+        }
+
+        // Performance warning if tick takes too long
+        if (tickDuration > options.tickInterval * 0.8) {
+          console.warn(`⚙️ SimulationEngine: ⚠️ Tick ${this.currentTick} took ${tickDuration}ms (${((tickDuration / options.tickInterval) * 100).toFixed(1)}% of interval)`)
         }
       } catch (error) {
-        console.error(`Error in simulation tick ${this.currentTick}:`, error)
+        const tickDuration = Date.now() - tickStartTime
+        console.error(`⚙️ SimulationEngine: ❌ Error in tick ${this.currentTick} after ${tickDuration}ms:`, error)
       }
     }, options.tickInterval)
+
+    console.log('⚙️ SimulationEngine: ✅ Engine started successfully')
   }
 
   async stop(): Promise<void> {
     if (!this.isRunning) {
+      console.log('⚙️ SimulationEngine: Engine is not running')
       return
     }
+
+    console.log(`⚙️ SimulationEngine: Stopping engine at tick ${this.currentTick}...`)
 
     if (this.intervalId) {
       clearInterval(this.intervalId)
       this.intervalId = null
+      console.log('⚙️ SimulationEngine: Interval cleared')
     }
 
     this.isRunning = false
-    console.log(`Simulation engine stopped at tick ${this.currentTick}`)
+    console.log(`⚙️ SimulationEngine: ✅ Engine stopped successfully at tick ${this.currentTick}`)
   }
 
   getCurrentTick(): number {
+    console.log(`⚙️ SimulationEngine: Current tick requested: ${this.currentTick}`)
     return this.currentTick
   }
 
   isSimulationRunning(): boolean {
+    console.log(`⚙️ SimulationEngine: Running status requested: ${this.isRunning}`)
     return this.isRunning
   }
 } 
