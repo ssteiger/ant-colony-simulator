@@ -4,6 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema, eq } from '@ant-colony-simulator/db-drizzle'
 import { AddAntsButton } from './-components/add-ants-button'
 import { CreateSimulationButton } from './-components/create-simulation-button'
+import { Button } from '~/lib/components/ui/button'
 
 interface Simulation {
   id: string
@@ -229,8 +230,8 @@ const SimulationPage = () => {
   } = useQuery({
     queryKey: ['simulation-data', simulationId],
     queryFn: () => getSimulationData({ data: { simulationId } }),
-    // Refresh simulation data every 5 seconds
-    refetchInterval: 5000,
+    // Refresh simulation data every 0.05 seconds
+    refetchInterval: 50,
   })
 
   const hasSimulation = data?.simulation !== null && data?.simulation !== undefined
@@ -255,13 +256,12 @@ const SimulationPage = () => {
         </div>
         <div className="flex gap-2">
           <CreateSimulationButton />
-          <button 
-            type="button"
+          <Button 
             onClick={() => refetch()} 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            variant="outline"
           >
             Refresh
-          </button>
+          </Button>
           {hasSimulation && <AddAntsButton />}
         </div>
       </div>

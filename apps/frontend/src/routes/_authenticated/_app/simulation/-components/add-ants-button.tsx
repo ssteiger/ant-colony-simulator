@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
+import { Button } from '~/lib/components/ui/button'
 
 // Server function to add ants to the simulation
 const addAntsToSimulation = createServerFn({ method: 'POST' })
@@ -118,11 +119,10 @@ export function AddAntsButton() {
   }
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
       onClick={handleAddAnts}
       disabled={isLoading || addAntsMutation.isPending}
-      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
     >
       {isLoading || addAntsMutation.isPending ? (
         <span className="flex items-center gap-2">
@@ -148,6 +148,6 @@ export function AddAntsButton() {
       ) : (
         'Add 100 Ants'
       )}
-    </button>
+    </Button>
   )
 }

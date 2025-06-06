@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
+import { Button } from '~/lib/components/ui/button'
 
 interface Simulation {
   id: string
@@ -148,13 +149,13 @@ function RouteComponent() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button 
+          <Button
             type="button"
             onClick={() => refetch()}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
           >
             Refresh
-          </button>
+          </Button>
           <button 
             type="button"
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
