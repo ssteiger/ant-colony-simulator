@@ -18,6 +18,7 @@ import { Route as AuthLoginIndexImport } from './routes/auth/login/index'
 import { Route as AuthenticatedAppIndexImport } from './routes/_authenticated/_app/index'
 import { Route as AuthenticatedAppSettingsIndexImport } from './routes/_authenticated/_app/settings/index'
 import { Route as AuthenticatedAppDashboardIndexImport } from './routes/_authenticated/_app/dashboard/index'
+import { Route as AuthenticatedAppSimulationIdImport } from './routes/_authenticated/_app/simulation/$id'
 import { Route as AuthenticatedAppSettingsNotificationsIndexImport } from './routes/_authenticated/_app/settings/notifications/index'
 import { Route as AuthenticatedAppSettingsDisplayIndexImport } from './routes/_authenticated/_app/settings/display/index'
 import { Route as AuthenticatedAppSettingsAppearanceIndexImport } from './routes/_authenticated/_app/settings/appearance/index'
@@ -64,6 +65,13 @@ const AuthenticatedAppDashboardIndexRoute =
   AuthenticatedAppDashboardIndexImport.update({
     id: '/dashboard/',
     path: '/dashboard/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+
+const AuthenticatedAppSimulationIdRoute =
+  AuthenticatedAppSimulationIdImport.update({
+    id: '/simulation/$id',
+    path: '/simulation/$id',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 
@@ -134,6 +142,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRegisterIndexImport
       parentRoute: typeof rootRoute
     }
+    '/_authenticated/_app/simulation/$id': {
+      id: '/_authenticated/_app/simulation/$id'
+      path: '/simulation/$id'
+      fullPath: '/simulation/$id'
+      preLoaderRoute: typeof AuthenticatedAppSimulationIdImport
+      parentRoute: typeof AuthenticatedAppImport
+    }
     '/_authenticated/_app/dashboard/': {
       id: '/_authenticated/_app/dashboard/'
       path: '/dashboard'
@@ -183,6 +198,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppSimulationIdRoute: typeof AuthenticatedAppSimulationIdRoute
   AuthenticatedAppDashboardIndexRoute: typeof AuthenticatedAppDashboardIndexRoute
   AuthenticatedAppSettingsIndexRoute: typeof AuthenticatedAppSettingsIndexRoute
   AuthenticatedAppSettingsAccountIndexRoute: typeof AuthenticatedAppSettingsAccountIndexRoute
@@ -193,6 +209,7 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppSimulationIdRoute: AuthenticatedAppSimulationIdRoute,
   AuthenticatedAppDashboardIndexRoute: AuthenticatedAppDashboardIndexRoute,
   AuthenticatedAppSettingsIndexRoute: AuthenticatedAppSettingsIndexRoute,
   AuthenticatedAppSettingsAccountIndexRoute:
@@ -225,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedAppIndexRoute
   '/auth/login': typeof AuthLoginIndexRoute
   '/auth/register': typeof AuthRegisterIndexRoute
+  '/simulation/$id': typeof AuthenticatedAppSimulationIdRoute
   '/dashboard': typeof AuthenticatedAppDashboardIndexRoute
   '/settings': typeof AuthenticatedAppSettingsIndexRoute
   '/settings/account': typeof AuthenticatedAppSettingsAccountIndexRoute
@@ -238,6 +256,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedAppIndexRoute
   '/auth/login': typeof AuthLoginIndexRoute
   '/auth/register': typeof AuthRegisterIndexRoute
+  '/simulation/$id': typeof AuthenticatedAppSimulationIdRoute
   '/dashboard': typeof AuthenticatedAppDashboardIndexRoute
   '/settings': typeof AuthenticatedAppSettingsIndexRoute
   '/settings/account': typeof AuthenticatedAppSettingsAccountIndexRoute
@@ -253,6 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/': typeof AuthenticatedAppIndexRoute
   '/auth/login/': typeof AuthLoginIndexRoute
   '/auth/register/': typeof AuthRegisterIndexRoute
+  '/_authenticated/_app/simulation/$id': typeof AuthenticatedAppSimulationIdRoute
   '/_authenticated/_app/dashboard/': typeof AuthenticatedAppDashboardIndexRoute
   '/_authenticated/_app/settings/': typeof AuthenticatedAppSettingsIndexRoute
   '/_authenticated/_app/settings/account/': typeof AuthenticatedAppSettingsAccountIndexRoute
@@ -268,6 +288,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth/login'
     | '/auth/register'
+    | '/simulation/$id'
     | '/dashboard'
     | '/settings'
     | '/settings/account'
@@ -280,6 +301,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth/login'
     | '/auth/register'
+    | '/simulation/$id'
     | '/dashboard'
     | '/settings'
     | '/settings/account'
@@ -293,6 +315,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/'
     | '/auth/login/'
     | '/auth/register/'
+    | '/_authenticated/_app/simulation/$id'
     | '/_authenticated/_app/dashboard/'
     | '/_authenticated/_app/settings/'
     | '/_authenticated/_app/settings/account/'
@@ -340,6 +363,7 @@ export const routeTree = rootRoute
       "parent": "/_authenticated",
       "children": [
         "/_authenticated/_app/",
+        "/_authenticated/_app/simulation/$id",
         "/_authenticated/_app/dashboard/",
         "/_authenticated/_app/settings/",
         "/_authenticated/_app/settings/account/",
@@ -357,6 +381,10 @@ export const routeTree = rootRoute
     },
     "/auth/register/": {
       "filePath": "auth/register/index.tsx"
+    },
+    "/_authenticated/_app/simulation/$id": {
+      "filePath": "_authenticated/_app/simulation/$id.tsx",
+      "parent": "/_authenticated/_app"
     },
     "/_authenticated/_app/dashboard/": {
       "filePath": "_authenticated/_app/dashboard/index.tsx",

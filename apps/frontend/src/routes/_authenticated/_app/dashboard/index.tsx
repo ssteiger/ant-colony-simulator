@@ -1,347 +1,220 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
-import { AddAntsButton } from './-components/add-ants-button'
-import { CreateSimulationButton } from './-components/create-simulation-button'
 
 interface Simulation {
   id: string
   name: string
+  description: string | null
   world_width: number
   world_height: number
   current_tick: number | null
   is_active: boolean | null
-  season?: string | null
-  weather_type?: string | null
+  season: string | null
+  weather_type: string | null
+  created_at: string
+  updated_at: string
 }
 
-interface Ant {
-  id: string
-  position_x: string
-  position_y: string
-  colony_id: string
-  state: string
-}
-
-interface Colony {
-  id: string
-  name: string
-  center_x: string
-  center_y: string
-  radius: string
-  color_hue: number
-}
-
-interface FoodSource {
-  id: string
-  position_x: string
-  position_y: string
-  food_type: string
-  amount: string
-}
-
-const getSimulationData = createServerFn({ method: 'GET' })
+const getAllSimulations = createServerFn({ method: 'GET' })
   .handler(async () => {
     try {
-      // Get the first simulation for now (simplified)
       const simulations = await postgres_db
-        .select()
+        .select({
+          id: schema.simulations.id,
+          name: schema.simulations.name,
+          description: schema.simulations.description,
+          world_width: schema.simulations.world_width,
+          world_height: schema.simulations.world_height,
+          current_tick: schema.simulations.current_tick,
+          is_active: schema.simulations.is_active,
+          season: schema.simulations.season,
+          weather_type: schema.simulations.weather_type,
+          created_at: schema.simulations.created_at,
+          updated_at: schema.simulations.updated_at
+        })
         .from(schema.simulations)
-        .limit(1)
+        .orderBy(schema.simulations.updated_at)
 
-      if (simulations.length === 0) {
-        return { simulation: null, ants: [], colonies: [], foodSources: [] }
-      }
-
-      const simulation = simulations[0]
-
-      // Get all colonies (simplified)
-      const colonies = await postgres_db
-        .select({
-          id: schema.colonies.id,
-          name: schema.colonies.name,
-          center_x: schema.colonies.center_x,
-          center_y: schema.colonies.center_y,
-          radius: schema.colonies.radius,
-          color_hue: schema.colonies.color_hue
-        })
-        .from(schema.colonies)
-        .limit(100)
-
-      // Get all ants (simplified)
-      const ants = await postgres_db
-        .select({
-          id: schema.ants.id,
-          position_x: schema.ants.position_x,
-          position_y: schema.ants.position_y,
-          colony_id: schema.ants.colony_id,
-          state: schema.ants.state
-        })
-        .from(schema.ants)
-        .limit(500)
-
-      // Get all food sources (simplified)
-      const foodSources = await postgres_db
-        .select({
-          id: schema.food_sources.id,
-          position_x: schema.food_sources.position_x,
-          position_y: schema.food_sources.position_y,
-          food_type: schema.food_sources.food_type,
-          amount: schema.food_sources.amount
-        })
-        .from(schema.food_sources)
-        .limit(100)
-
-      return {
-        simulation,
-        ants,
-        colonies,
-        foodSources
-      }
+      // Ensure dates are never null by providing fallback values
+      return simulations.map(sim => ({
+        ...sim,
+        created_at: sim.created_at || new Date().toISOString(),
+        updated_at: sim.updated_at || new Date().toISOString()
+      }))
     } catch (error) {
       console.error('Database error:', error)
-      return { simulation: null, ants: [], colonies: [], foodSources: [] }
+      return []
     }
   })
 
-const SimulationField = ({ 
-  simulation, 
-  ants, 
-  colonies, 
-  foodSources 
-}: { 
-  simulation: Simulation | null
-  ants: Ant[]
-  colonies: Colony[]
-  foodSources: FoodSource[]
-}) => {
-  if (!simulation) {
-    return (
-      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
-        <p className="text-gray-500">No active simulation found</p>
-      </div>
-    )
+const SimulationCard = ({ simulation }: { simulation: Simulation }) => {
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
-  const gridSize = 20 // Size of each grid square in pixels
-  const fieldWidth = Math.min(simulation.world_width, 800) // Limit display width
-  const fieldHeight = Math.min(simulation.world_height, 600) // Limit display height
-  const gridCols = Math.floor(fieldWidth / gridSize)
-  const gridRows = Math.floor(fieldHeight / gridSize)
-
   return (
-    <div className="relative border border-gray-300 rounded-lg overflow-hidden" style={{ width: fieldWidth, height: fieldHeight }}>
-      {/* Grid background */}
-      <svg width={fieldWidth} height={fieldHeight} className="absolute inset-0 bg-white" aria-label="Simulation field with grid">
-        <title>Ant Simulation Field</title>
-        {/* Vertical grid lines */}
-        {Array.from({ length: gridCols + 1 }, (_, i) => (
-          <line
-            key={`vertical-line-${i}-${gridCols}`}
-            x1={i * gridSize}
-            y1={0}
-            x2={i * gridSize}
-            y2={fieldHeight}
-            stroke="#e5e7eb"
-            strokeWidth={0.5}
-          />
-        ))}
-        {/* Horizontal grid lines */}
-        {Array.from({ length: gridRows + 1 }, (_, i) => (
-          <line
-            key={`horizontal-line-${i}-${gridRows}`}
-            x1={0}
-            y1={i * gridSize}
-            x2={fieldWidth}
-            y2={i * gridSize}
-            stroke="#e5e7eb"
-            strokeWidth={0.5}
-          />
-        ))}
-        
-        {/* Food sources */}
-        {foodSources.map((food) => (
-          <circle
-            key={food.id}
-            cx={Math.min(Number(food.position_x), fieldWidth)}
-            cy={Math.min(Number(food.position_y), fieldHeight)}
-            r={Math.max(3, Math.min(Number(food.amount) / 10, 10))}
-            fill="#10b981"
-            opacity={0.7}
-          />
-        ))}
-        
-        {/* Colonies */}
-        {colonies.map((colony) => (
-          <g key={colony.id}>
-            {/* Colony territory circle */}
-            <circle
-              cx={Math.min(Number(colony.center_x), fieldWidth)}
-              cy={Math.min(Number(colony.center_y), fieldHeight)}
-              r={Math.min(Number(colony.radius), 50)}
-              fill={`hsl(${colony.color_hue}, 50%, 80%)`}
-              opacity={0.3}
-            />
-            {/* Colony center */}
-            <circle
-              cx={Math.min(Number(colony.center_x), fieldWidth)}
-              cy={Math.min(Number(colony.center_y), fieldHeight)}
-              r={5}
-              fill={`hsl(${colony.color_hue}, 70%, 50%)`}
-            />
-          </g>
-        ))}
-        
-        {/* Ants */}
-        {ants.map((ant) => (
-          <circle
-            key={ant.id}
-            cx={Math.min(Number(ant.position_x), fieldWidth)}
-            cy={Math.min(Number(ant.position_y), fieldHeight)}
-            r={2}
-            fill="#8b4513"
-            className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
-          />
-        ))}
-      </svg>
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              {simulation.name}
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                simulation.is_active 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {simulation.is_active ? 'Active' : 'Inactive'}
+              </span>
+              <span className="text-xs text-gray-500">
+                Tick: {(simulation.current_tick || 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {simulation.description && (
+          <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+            {simulation.description}
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+          <div>
+            <span className="text-gray-500">World Size:</span>
+            <p className="font-medium">{simulation.world_width} × {simulation.world_height}</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Environment:</span>
+            <p className="font-medium capitalize">
+              {simulation.season} • {simulation.weather_type}
+            </p>
+          </div>
+        </div>
+
+        <div className="text-xs text-gray-500 mb-4">
+          <p>Created: {formatDate(simulation.created_at)}</p>
+          <p>Updated: {formatDate(simulation.updated_at)}</p>
+        </div>
+
+        <div className="flex gap-2">
+          <Link
+            to="/simulation/$id"
+            params={{ id: simulation.id }}
+            className="flex-1 bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-center"
+          >
+            View Simulation
+          </Link>
+          <button 
+            type="button"
+            className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+            Settings
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
-const HomePage = () => {
+function RouteComponent() {
   const {
-    data,
+    data: simulations,
     isLoading,
-    refetch,
+    error,
+    refetch
   } = useQuery({
-    queryKey: ['simulation-data'],
-    queryFn: () => getSimulationData(),
-    // Refresh simulation data every 5 seconds
-    refetchInterval: 5000,
+    queryKey: ['all-simulations'],
+    queryFn: () => getAllSimulations(),
+    refetchInterval: 30000, // Refresh every 30 seconds
   })
 
-  const hasSimulation = data?.simulation !== null && data?.simulation !== undefined
-
   return (
-    <div className="flex-1 space-y-4 p-4">
+    <div className="flex-1 space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          {hasSimulation && data?.simulation && (
-            <p className="text-sm text-muted-foreground">
-              {data.simulation.name} - Tick: {data.simulation.current_tick || 0} | 
-              Ants: {data.ants.length} | 
-              Colonies: {data.colonies.length} | 
-              Food Sources: {data.foodSources.length}
-            </p>
-          )}
-          {!hasSimulation && (
-            <p className="text-sm text-yellow-600">
-              No active simulation found. Create one to get started!
-            </p>
-          )}
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">
+            Manage and monitor your ant colony simulations
+          </p>
         </div>
         <div className="flex gap-2">
-          <CreateSimulationButton />
           <button 
             type="button"
-            onClick={() => refetch()} 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
           >
             Refresh
           </button>
-          {hasSimulation && <AddAntsButton />}
+          <button 
+            type="button"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            New Simulation
+          </button>
         </div>
       </div>
-      
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold">Simulation Field</h3>
-        <p className="text-sm text-muted-foreground">
-          White grid shows coordinates. Brown dots are ants, colored circles are colonies, green circles are food sources.
-        </p>
-      </div>
-      
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <p className="text-red-800">
+            Error loading simulations. Please try again.
+          </p>
+        </div>
+      )}
+
       {isLoading ? (
-        <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
-          <p className="text-gray-500">Loading simulation...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }, (_, i) => `skeleton-${i}`).map((key) => (
+            <div key={key} className="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
+              <div className="h-3 bg-gray-200 rounded w-1/2 mb-2" />
+              <div className="h-3 bg-gray-200 rounded w-2/3 mb-4" />
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="h-3 bg-gray-200 rounded" />
+                <div className="h-3 bg-gray-200 rounded" />
+              </div>
+              <div className="h-8 bg-gray-200 rounded" />
+            </div>
+          ))}
         </div>
+      ) : simulations && simulations.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {simulations.map((simulation) => (
+              <SimulationCard key={simulation.id} simulation={simulation} />
+            ))}
+          </div>
+          
+          <div className="text-center text-gray-500 mt-8">
+            <p>{simulations.length} simulation{simulations.length === 1 ? '' : 's'} found</p>
+          </div>
+        </>
       ) : (
-        <SimulationField 
-          simulation={data?.simulation || null}
-          ants={data?.ants || []}
-          colonies={data?.colonies || []}
-          foodSources={data?.foodSources || []}
-        />
-      )}
-      
-      {hasSimulation && data?.simulation && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">World Size</h4>
-            <p>{data.simulation.world_width} × {data.simulation.world_height}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">Simulation Status</h4>
-            <p className={data.simulation.is_active ? "text-green-600" : "text-red-600"}>
-              {data.simulation.is_active ? "Active" : "Inactive"}
+        <div className="text-center py-12">
+          <div className="max-w-md mx-auto">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Empty state illustration">
+              <title>No simulations found</title>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No simulations</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Get started by creating your first ant colony simulation.
             </p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">Current Tick</h4>
-            <p>{(data.simulation.current_tick || 0).toLocaleString()}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">Environment</h4>
-            <p className="capitalize">{data.simulation.season} • {data.simulation.weather_type}</p>
-          </div>
-        </div>
-      )}
-
-      {hasSimulation && data && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border rounded-lg p-4">
-            <h4 className="font-semibold mb-2">Ant Activity</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Wandering:</span>
-                <span>{data.ants.filter(ant => ant.state === 'wandering').length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Seeking Food:</span>
-                <span>{data.ants.filter(ant => ant.state === 'seeking_food').length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Carrying Food:</span>
-                <span>{data.ants.filter(ant => ant.state === 'carrying_food').length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Other States:</span>
-                <span>{data.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food'].includes(ant.state)).length}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border rounded-lg p-4">
-            <h4 className="font-semibold mb-2">Colonies</h4>
-            <div className="space-y-2 text-sm">
-              {data.colonies.map((colony) => (
-                <div key={colony.id} className="flex justify-between">
-                  <span>{colony.name}:</span>
-                  <span>{data.ants.filter(ant => ant.colony_id === colony.id).length} ants</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white border rounded-lg p-4">
-            <h4 className="font-semibold mb-2">Food Sources</h4>
-            <div className="space-y-2 text-sm">
-              {data.foodSources.map((food) => (
-                <div key={food.id} className="flex justify-between">
-                  <span className="capitalize">{food.food_type}:</span>
-                  <span>{Number(food.amount).toFixed(1)}</span>
-                </div>
-              ))}
+            <div className="mt-6">
+              <button 
+                type="button"
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                Create Simulation
+              </button>
             </div>
           </div>
         </div>
@@ -351,5 +224,5 @@ const HomePage = () => {
 }
 
 export const Route = createFileRoute('/_authenticated/_app/dashboard/')({
-  component: HomePage,
+  component: RouteComponent,
 })
