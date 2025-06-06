@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
+import { AddAntsButton } from './-components/add-ants-button'
+import { CreateSimulationButton } from './-components/create-simulation-button'
 
 interface Simulation {
   id: string
@@ -217,12 +219,14 @@ const HomePage = () => {
     refetchInterval: 5000,
   })
 
+  const hasSimulation = data?.simulation !== null && data?.simulation !== undefined
+
   return (
     <div className="flex-1 space-y-4 p-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Ant Colony Simulation</h2>
-          {data?.simulation && (
+          {hasSimulation && data?.simulation && (
             <p className="text-sm text-muted-foreground">
               {data.simulation.name} - Tick: {data.simulation.current_tick || 0} | 
               Ants: {data.ants.length} | 
@@ -230,14 +234,23 @@ const HomePage = () => {
               Food Sources: {data.foodSources.length}
             </p>
           )}
+          {!hasSimulation && (
+            <p className="text-sm text-yellow-600">
+              No active simulation found. Create one to get started!
+            </p>
+          )}
         </div>
-        <button 
-          type="button"
-          onClick={() => refetch()} 
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-        >
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <CreateSimulationButton />
+          <button 
+            type="button"
+            onClick={() => refetch()} 
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            Refresh
+          </button>
+          {hasSimulation && <AddAntsButton />}
+        </div>
       </div>
       
       <div className="space-y-2">
@@ -260,8 +273,8 @@ const HomePage = () => {
         />
       )}
       
-      {data?.simulation && (
-        <div className="grid grid-cols-3 gap-4 text-sm">
+      {hasSimulation && data?.simulation && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="bg-gray-50 p-3 rounded">
             <h4 className="font-medium">World Size</h4>
             <p>{data.simulation.world_width} × {data.simulation.world_height}</p>
@@ -275,6 +288,60 @@ const HomePage = () => {
           <div className="bg-gray-50 p-3 rounded">
             <h4 className="font-medium">Current Tick</h4>
             <p>{(data.simulation.current_tick || 0).toLocaleString()}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded">
+            <h4 className="font-medium">Environment</h4>
+            <p className="capitalize">{data.simulation.season} • {data.simulation.weather_type}</p>
+          </div>
+        </div>
+      )}
+
+      {hasSimulation && data && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Ant Activity</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Wandering:</span>
+                <span>{data.ants.filter(ant => ant.state === 'wandering').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Seeking Food:</span>
+                <span>{data.ants.filter(ant => ant.state === 'seeking_food').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Carrying Food:</span>
+                <span>{data.ants.filter(ant => ant.state === 'carrying_food').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Other States:</span>
+                <span>{data.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food'].includes(ant.state)).length}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Colonies</h4>
+            <div className="space-y-2 text-sm">
+              {data.colonies.map((colony) => (
+                <div key={colony.id} className="flex justify-between">
+                  <span>{colony.name}:</span>
+                  <span>{data.ants.filter(ant => ant.colony_id === colony.id).length} ants</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Food Sources</h4>
+            <div className="space-y-2 text-sm">
+              {data.foodSources.map((food) => (
+                <div key={food.id} className="flex justify-between">
+                  <span className="capitalize">{food.food_type}:</span>
+                  <span>{Number(food.amount).toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

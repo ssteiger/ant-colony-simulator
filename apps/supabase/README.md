@@ -1,4 +1,4 @@
-# Vibe Coding Boilerplate
+# Ant Colony Simulation - Supabase
 
 ## Start local supabase server
 
