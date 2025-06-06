@@ -35,6 +35,8 @@ export class AntBehaviorManager {
       (ant.colonies as any)?.simulation_id === this.simulationId
     )
 
+    console.log(`Processing ${simulationAnts.length} ants at tick ${tick}`)
+
     // Process each ant's behavior
     for (const ant of simulationAnts) {
       await this.processAntBehavior(ant, tick)
@@ -149,12 +151,15 @@ export class AntBehaviorManager {
     const boundedX = Math.max(0, Math.min(1200, newX))
     const boundedY = Math.max(0, Math.min(800, newY))
 
+    console.log(`Moving ant ${ant.id} from (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) to (${boundedX.toFixed(1)}, ${boundedY.toFixed(1)})`)
+
     await this.supabase
       .from('ants')
       .update({
         position_x: boundedX,
         position_y: boundedY,
-        angle: randomAngle
+        angle: randomAngle,
+        last_updated: new Date().toISOString()
       })
       .eq('id', ant.id)
   }

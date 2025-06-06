@@ -3,8 +3,8 @@ import { useNavigate } from '@tanstack/react-router'
 
 const Home = () => {
   const navigate = useNavigate()
-  // redirect to home
-  navigate({ to: '/home' })
+  // redirect to dashboard
+  navigate({ to: '/dashboard' })
   return null
 }
 

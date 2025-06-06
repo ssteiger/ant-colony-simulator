@@ -1,17 +1,15 @@
 import {
-  ArrowUpCircleIcon,
-  BarChartIcon,
-  CameraIcon,
   ClipboardListIcon,
   DatabaseIcon,
-  FileCodeIcon,
   FileIcon,
-  FileTextIcon,
   HelpCircleIcon,
   LayoutDashboardIcon,
+  MapIcon,
+  PlayIcon,
   SearchIcon,
   SettingsIcon,
-  UsersIcon,
+  BarChart3Icon,
+  BugIcon,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
@@ -41,68 +39,35 @@ interface AppSidebarProps {
 
 const data = {
   user: {
-    name: 'shadcn',
-    email: 'm@example.com',
-    avatar: '/avatars/shadcn.jpg',
+    name: 'Researcher',
+    email: 'researcher@antlab.com',
+    avatar: '/avatars/researcher.jpg',
   },
   navMain: [
     {
-      title: 'Home',
-      url: '/home',
+      title: 'Dashboard',
+      url: '/dashboard',
       icon: LayoutDashboardIcon,
     },
     {
-      title: 'Logs',
-      url: '/activity-logs',
-      icon: ClipboardListIcon,
-    },
-  ],
-  navClouds: [
-    {
-      title: 'Capture',
-      icon: CameraIcon,
-      isActive: true,
-      url: '#',
-      items: [
-        {
-          title: 'Active Proposals',
-          url: '#',
-        },
-        {
-          title: 'Archived',
-          url: '#',
-        },
-      ],
+      title: 'Simulation',
+      url: '/simulation',
+      icon: PlayIcon,
     },
     {
-      title: 'Proposal',
-      icon: FileTextIcon,
-      url: '#',
-      items: [
-        {
-          title: 'Active Proposals',
-          url: '#',
-        },
-        {
-          title: 'Archived',
-          url: '#',
-        },
-      ],
+      title: 'Colonies',
+      url: '/colonies',
+      icon: BugIcon,
     },
     {
-      title: 'Prompts',
-      icon: FileCodeIcon,
-      url: '#',
-      items: [
-        {
-          title: 'Active Proposals',
-          url: '#',
-        },
-        {
-          title: 'Archived',
-          url: '#',
-        },
-      ],
+      title: 'Environment',
+      url: '/environment',
+      icon: MapIcon,
+    },
+    {
+      title: 'Analytics',
+      url: '/analytics',
+      icon: BarChart3Icon,
     },
   ],
   navSecondary: [
@@ -112,33 +77,17 @@ const data = {
       icon: SettingsIcon,
     },
     {
-      title: 'Get Help',
-      url: '#',
+      title: 'Help & Documentation',
+      url: '/help',
       icon: HelpCircleIcon,
     },
     {
       title: 'Search',
-      url: '#',
+      url: '/search',
       icon: SearchIcon,
     },
   ],
-  documents: [
-    {
-      name: 'Data Library',
-      url: '#',
-      icon: DatabaseIcon,
-    },
-    {
-      name: 'Reports',
-      url: '#',
-      icon: ClipboardListIcon,
-    },
-    {
-      name: 'Word Assistant',
-      url: '#',
-      icon: FileIcon,
-    },
-  ],
+  tools: [],
 }
 
 export function AppSidebar({ variant = 'inset' }: AppSidebarProps) {
@@ -149,7 +98,7 @@ export function AppSidebar({ variant = 'inset' }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
               <Link to="/home">
-                <span className="text-base font-semibold">Boilerplate</span>
+                <span className="text-base font-semibold">Ant Colony Simulator</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -157,7 +106,7 @@ export function AppSidebar({ variant = 'inset' }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
+        <NavDocuments items={data.tools} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

@@ -12,6 +12,8 @@ interface Simulation {
   world_height: number
   current_tick: number | null
   is_active: boolean | null
+  season?: string | null
+  weather_type?: string | null
 }
 
 interface Ant {
@@ -225,7 +227,6 @@ const HomePage = () => {
     <div className="flex-1 space-y-4 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Ant Colony Simulation</h2>
           {hasSimulation && data?.simulation && (
             <p className="text-sm text-muted-foreground">
               {data.simulation.name} - Tick: {data.simulation.current_tick || 0} | 
@@ -349,6 +350,6 @@ const HomePage = () => {
   )
 }
 
-export const Route = createFileRoute('/_authenticated/_app/home/')({
+export const Route = createFileRoute('/_authenticated/_app/dashboard/')({
   component: HomePage,
 })

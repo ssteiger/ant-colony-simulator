@@ -1,5 +1,4 @@
 import { AntColonySimulator } from './simulation/AntColonySimulator'
-//import { seedInitialData } from './seed-scripts'
 import { createSupabaseClient } from './utils/supabase'
 
 async function startServer() {
@@ -20,11 +19,6 @@ async function startServer() {
 
     // Initialize the ant colony simulator
     const simulator = new AntColonySimulator(supabase)
-
-    // Seed initial data (simulations, colonies, ants, food sources, etc.)
-    console.log('Seeding initial simulation data...')
-    //await seedInitialData(supabase)
-    console.log('Initial data seeded successfully')
 
     // Start the simulation
     await simulator.start()

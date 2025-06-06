@@ -40,7 +40,11 @@ export class SimulationEngine {
     this.intervalId = setInterval(async () => {
       try {
         this.currentTick++
+        console.log(`Simulation tick ${this.currentTick} starting...`)
         await options.onTick(this.currentTick)
+        if (this.currentTick % 10 === 0) {
+          console.log(`Completed tick ${this.currentTick}`)
+        }
       } catch (error) {
         console.error(`Error in simulation tick ${this.currentTick}:`, error)
       }
