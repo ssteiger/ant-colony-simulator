@@ -62,7 +62,7 @@ export class AntBehaviorManager {
 
     for (const ant of simulationAnts) {
       try {
-        const result = await this.processAntBehavior(ant as AntWithRelations, tick)
+        const result = await this.processAntBehavior(ant as AntWithRelations)
         if (result === 'dead') {
           deadCount++
         } else {
@@ -77,10 +77,11 @@ export class AntBehaviorManager {
     console.log(`🐜 AntBehaviorManager: Tick ${tick} complete - Processed: ${processedCount}, Died: ${deadCount}, Errors: ${errorCount}`)
   }
 
-  private async processAntBehavior(ant: AntWithRelations, tick: number): Promise<string> {
+  private async processAntBehavior(ant: AntWithRelations): Promise<string> {
     try {
       console.log(`🐜 Processing ant ${ant.id}: state=${ant.state}, energy=${ant.energy}, position=(${ant.position_x}, ${ant.position_y})`)
       
+      /*
       // Age the ant
       const newAge = ant.age_ticks + 1
       
@@ -101,6 +102,8 @@ export class AntBehaviorManager {
         await this.killAnt(ant.id, 'starvation')
         return 'dead'
       }
+      */
+
 
       // Determine ant's next action based on current state
       const nextAction = await this.determineAntAction(ant)
@@ -113,8 +116,8 @@ export class AntBehaviorManager {
       await this.supabase
         .from('ants')
         .update({
-          age_ticks: newAge,
-          energy: newEnergy,
+          //age_ticks: newAge,
+          //energy: newEnergy,
           last_updated: new Date().toISOString()
         })
         .eq('id', ant.id)
@@ -149,7 +152,7 @@ export class AntBehaviorManager {
               return 'seek_food'
             }
           } else {
-            console.log(`🐜 ${role} ant ${ant.id} found nearby food: ${nearbyFood.food_type} at (${nearbyFood.position_x.toFixed(1)}, ${nearbyFood.position_y.toFixed(1)})`)
+            console.log(`🐜 ${role} ant ${ant.id} found nearby food: ${nearbyFood.food_type} at (${nearbyFood.position_x}, ${nearbyFood.position_y})`)
             return 'seek_food'
           }
         }
@@ -166,7 +169,7 @@ export class AntBehaviorManager {
         // Role-based pheromone following behavior
         const followThreshold = role === 'scout' ? 0.05 : role === 'worker' ? 0.1 : 0.15 // Scouts follow weaker trails
         if (pheromoneInfluence.strength > followThreshold) {
-          console.log(`🐜 ${role} ant ${ant.id} detected pheromone trail (strength: ${pheromoneInfluence.strength.toFixed(3)})`)
+          console.log(`🐜 ${role} ant ${ant.id} detected pheromone trail (strength: ${pheromoneInfluence.strength})`)
           return 'follow_pheromone_trail'
         }
 
@@ -178,7 +181,7 @@ export class AntBehaviorManager {
         // Check if ant reached its food target
         if (ant.target_id) {
           const distance = await this.getDistanceToTarget(ant, ant.target_id)
-          console.log(`🐜 ${role} ant ${ant.id} distance to food target: ${distance.toFixed(1)}`)
+          console.log(`🐜 ${role} ant ${ant.id} distance to food target: ${distance}`)
           if (distance < 5) {
             return 'collect_food'
           }
@@ -252,46 +255,44 @@ export class AntBehaviorManager {
       return
     }
 
-    // Lévy Flight parameters
-    const mu = 2.0 // Power-law exponent (1 < μ ≤ 3, optimal foraging ≈ 2.0)
-    const minStepLength = ant.current_speed * 0.5 // Minimum step length
-    const maxStepLength = ant.current_speed * 10 // Maximum step length to prevent huge jumps
+    // Convert current angle from degrees to radians
+    let currentAngle = (ant.angle * Math.PI) / 180
 
-    // Generate Lévy Flight step length using inverse transform sampling
-    // P(l) ∝ l^(-μ) → l = l_min * (1 - u)^(-1/(μ-1))
-    const u = Math.random()
-    let stepLength = minStepLength * (1 - u) ** (-1 / (mu - 1))
-    
-    // Cap the step length to prevent extremely long jumps that break the simulation
-    stepLength = Math.min(stepLength, maxStepLength)
+    // 5% chance to randomly change direction by up to 15%
+    if (Math.random() < 0.05) {
+      const maxAngleChange = 0.15 * Math.PI // 15% of π radians (about 27 degrees)
+      const angleChange = (Math.random() - 0.5) * 2 * maxAngleChange // Random change between -15% and +15%
+      currentAngle += angleChange
+      console.log(`🐜 Ant ${ant.id} randomly adjusted direction by ${(angleChange * 180 / Math.PI)}°`)
+    }
 
-    // Generate random direction (uniform distribution)
-    const direction = Math.random() * 2 * Math.PI
+    // Always move forward in the current direction
+    const moveDistance = ant.current_speed
 
     // Calculate new position
-    const newX = ant.position_x + Math.cos(direction) * stepLength
-    const newY = ant.position_y + Math.sin(direction) * stepLength
+    const newX = ant.position_x + Math.cos(currentAngle) * moveDistance
+    const newY = ant.position_y + Math.sin(currentAngle) * moveDistance
 
-    // Handle boundary conditions with wrapping or reflecting
+    // Handle boundary conditions with reflection
     let boundedX = newX
     let boundedY = newY
-    let finalAngle = direction
+    let finalAngle = currentAngle
 
     // Boundary collision detection with reflection
     if (newX < 0) {
       boundedX = Math.abs(newX) // Reflect off left boundary
-      finalAngle = Math.PI - direction
+      finalAngle = Math.PI - currentAngle
     } else if (newX > simulation.world_width) {
       boundedX = simulation.world_width - (newX - simulation.world_width)
-      finalAngle = Math.PI - direction
+      finalAngle = Math.PI - currentAngle
     }
 
     if (newY < 0) {
       boundedY = Math.abs(newY) // Reflect off top boundary
-      finalAngle = -direction
+      finalAngle = -currentAngle
     } else if (newY > simulation.world_height) {
       boundedY = simulation.world_height - (newY - simulation.world_height)
-      finalAngle = -direction
+      finalAngle = -currentAngle
     }
 
     // Ensure we stay within bounds after reflection
@@ -302,8 +303,8 @@ export class AntBehaviorManager {
     finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
 
     // Round positions to integers
-    const roundedX = Math.round(boundedX)
-    const roundedY = Math.round(boundedY)
+    const roundedX = Math.ceil(boundedX)
+    const roundedY = Math.ceil(boundedY)
 
     // Convert angle from radians to degrees and round to integer
     const angleDegrees = Math.round((finalAngle * 180) / Math.PI)
@@ -313,11 +314,7 @@ export class AntBehaviorManager {
       (roundedX - ant.position_x) ** 2 + (roundedY - ant.position_y) ** 2
     )
 
-    // Determine if this was a "long jump" (above 2x normal speed)
-    const isLongJump = stepLength > ant.current_speed * 2
-    const jumpType = isLongJump ? "LONG JUMP" : "local step"
-
-    console.log(`🐜 Lévy Flight: Ant ${ant.id} ${jumpType} (${actualDistance.toFixed(1)} units) from (${ant.position_x}, ${ant.position_y}) to (${roundedX}, ${roundedY}) at ${angleDegrees}°`)
+    console.log(`🐜 Ant ${ant.id} moved forward ${actualDistance} units from (${ant.position_x}, ${ant.position_y}) to (${roundedX}, ${roundedY}) at ${angleDegrees}°`)
 
     await this.supabase
       .from('ants')
@@ -343,8 +340,8 @@ export class AntBehaviorManager {
       const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
       // Round positions to integers
-      const roundedX = Math.round(newX)
-      const roundedY = Math.round(newY)
+      const roundedX = Math.ceil(newX)
+      const roundedY = Math.ceil(newY)
 
       // Convert angle from radians to degrees and round to integer
       const angleDegrees = Math.round((angle * 180) / Math.PI)
@@ -384,8 +381,8 @@ export class AntBehaviorManager {
     const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
     // Round positions to integers
-    const roundedX = Math.round(newX)
-    const roundedY = Math.round(newY)
+    const roundedX = Math.ceil(newX)
+    const roundedY = Math.ceil(newY)
 
     // Convert angle from radians to degrees and round to integer
     const angleDegrees = Math.round((angle * 180) / Math.PI)
@@ -420,15 +417,15 @@ export class AntBehaviorManager {
     const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
     // Round positions to integers
-    const roundedX = Math.round(newX)
-    const roundedY = Math.round(newY)
+    const roundedX = Math.ceil(newX)
+    const roundedY = Math.ceil(newY)
 
     // Check if ant reached colony
     const distance = Math.sqrt(
       (colony.center_x - roundedX) ** 2 + (colony.center_y - roundedY) ** 2
     )
 
-    console.log(`🐜 Moving ant ${ant.id} towards colony '${colony.name}' - distance: ${distance.toFixed(1)}`)
+    console.log(`🐜 Moving ant ${ant.id} towards colony '${colony.name}' - distance: ${distance}`)
 
     // Ants carrying food lay pheromone trails on their way back to colony
     // This is the classic behavior that creates reinforcement of successful paths
@@ -631,7 +628,7 @@ export class AntBehaviorManager {
     }
 
     if (closestFood) {
-      console.log(`🐜 Found nearby food: ${closestFood.food_type} at distance ${closestDistance.toFixed(1)}`)
+      console.log(`🐜 Found nearby food: ${closestFood.food_type} at distance ${closestDistance}`)
     }
 
     return closestFood
@@ -715,8 +712,8 @@ export class AntBehaviorManager {
     const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
 
     // Round positions to integers
-    const roundedX = Math.round(boundedX)
-    const roundedY = Math.round(boundedY)
+    const roundedX = Math.ceil(boundedX)
+    const roundedY = Math.ceil(boundedY)
 
     // Convert angle from radians to degrees
     const angleDegrees = Math.round((combinedDirection * 180) / Math.PI)
@@ -771,71 +768,92 @@ export class AntBehaviorManager {
       return
     }
 
-    // Enhanced Lévy Flight for scouts - more aggressive exploration
-    const mu = 1.8 // Lower mu = longer jumps for exploration
-    const baseSpeed = ant.current_speed
-    const scoutSpeedBonus = 1.3 // Scouts move 30% faster
-    const minStepLength = baseSpeed * scoutSpeedBonus * 0.7
-    const maxStepLength = baseSpeed * scoutSpeedBonus * 15 // Longer max jumps
+    // Convert current angle from degrees to radians
+    let currentAngle = (ant.angle * Math.PI) / 180
 
-    // Generate Lévy Flight step length
-    const u = Math.random()
-    let stepLength = minStepLength * (1 - u) ** (-1 / (mu - 1))
-    stepLength = Math.min(stepLength, maxStepLength)
-
-    // Scouts prefer to move towards unexplored areas (away from colony center slightly)
+    // Get colony position for exploration bias
     const { data: colony } = await this.supabase
       .from('colonies')
       .select('center_x, center_y')
       .eq('id', ant.colony_id)
       .single()
 
-    let direction: number
-    if (colony) {
-      // Bias direction slightly away from colony (but not too much)
-      const awayFromColony = Math.atan2(
-        ant.position_y - colony.center_y,
-        ant.position_x - colony.center_x
-      )
-      const randomVariation = (Math.random() - 0.5) * Math.PI // ±90 degrees variation
-      direction = awayFromColony + randomVariation
-    } else {
-      direction = Math.random() * 2 * Math.PI
+    // 20% chance to randomly change direction by up to 30% (more aggressive than regular ants)
+    if (Math.random() < 0.2) {
+      const maxAngleChange = 0.3 * Math.PI // 30% of π radians (about 54 degrees)
+      let angleChange = (Math.random() - 0.5) * 2 * maxAngleChange
+
+      // Scouts prefer to explore away from colony - bias the angle change
+      if (colony) {
+        const distanceFromColony = Math.sqrt(
+          (ant.position_x - colony.center_x) ** 2 + 
+          (ant.position_y - colony.center_y) ** 2
+        )
+        
+        // If close to colony, bias movement away from it
+        if (distanceFromColony < 100) {
+          const awayFromColony = Math.atan2(
+            ant.position_y - colony.center_y,
+            ant.position_x - colony.center_x
+          )
+          const angleDifference = currentAngle - awayFromColony
+          // If ant is facing towards colony, encourage turning away
+          if (Math.abs(angleDifference) > Math.PI / 2) {
+            angleChange *= 1.5 // Amplify the turn
+          }
+        }
+      }
+
+      currentAngle += angleChange
+      console.log(`🔍 Scout ant ${ant.id} randomly adjusted exploration direction by ${(angleChange * 180 / Math.PI).toFixed(1)}°`)
     }
 
+    // Scouts move faster than regular ants
+    const scoutSpeedBonus = 1.3 // 30% speed bonus
+    const moveDistance = ant.current_speed * scoutSpeedBonus
+
     // Calculate new position
-    const newX = ant.position_x + Math.cos(direction) * stepLength
-    const newY = ant.position_y + Math.sin(direction) * stepLength
+    const newX = ant.position_x + Math.cos(currentAngle) * moveDistance
+    const newY = ant.position_y + Math.sin(currentAngle) * moveDistance
 
     // Handle boundaries with reflection
     let boundedX = newX
     let boundedY = newY
-    let finalAngle = direction
+    let finalAngle = currentAngle
 
     if (newX < 0) {
       boundedX = Math.abs(newX)
-      finalAngle = Math.PI - direction
+      finalAngle = Math.PI - currentAngle
     } else if (newX > simulation.world_width) {
       boundedX = simulation.world_width - (newX - simulation.world_width)
-      finalAngle = Math.PI - direction
+      finalAngle = Math.PI - currentAngle
     }
 
     if (newY < 0) {
       boundedY = Math.abs(newY)
-      finalAngle = -direction
+      finalAngle = -currentAngle
     } else if (newY > simulation.world_height) {
       boundedY = simulation.world_height - (newY - simulation.world_height)
-      finalAngle = -direction
+      finalAngle = -currentAngle
     }
 
+    // Ensure we stay within bounds after reflection
     boundedX = Math.max(0, Math.min(simulation.world_width, boundedX))
     boundedY = Math.max(0, Math.min(simulation.world_height, boundedY))
 
-    const roundedX = Math.round(boundedX)
-    const roundedY = Math.round(boundedY)
-    const angleDegrees = Math.round(((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI) * 180 / Math.PI)
+    // Normalize angle to [0, 2π] range
+    finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
 
-    console.log(`🔍 Scout ant ${ant.id} exploring: moved ${stepLength.toFixed(1)} units to (${roundedX}, ${roundedY})`)
+    const roundedX = Math.ceil(boundedX)
+    const roundedY = Math.ceil(boundedY)
+    const angleDegrees = Math.round((finalAngle * 180) / Math.PI)
+
+    // Calculate actual distance moved for logging
+    const actualDistance = Math.sqrt(
+      (roundedX - ant.position_x) ** 2 + (roundedY - ant.position_y) ** 2
+    )
+
+    console.log(`🔍 Scout ant ${ant.id} exploring: moved forward ${actualDistance} units to (${roundedX}, ${roundedY})`)
 
     // Scouts are more likely to detect food from further away
     const nearbyFood = await this.findNearbyFood(roundedX, roundedY, 80) // Larger detection radius
@@ -935,8 +953,8 @@ export class AntBehaviorManager {
     const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
     const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
 
-    const roundedX = Math.round(boundedX)
-    const roundedY = Math.round(boundedY)
+    const roundedX = Math.ceil(boundedX)
+    const roundedY = Math.ceil(boundedY)
     const angleDegrees = Math.round((direction * 180) / Math.PI)
 
     await this.supabase

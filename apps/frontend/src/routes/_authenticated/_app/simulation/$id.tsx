@@ -14,6 +14,7 @@ type RenderAnt = {
   id: string;
   position_x: number;
   position_y: number;
+  angle: number;
   colony_id: string;
   state: string;
   ant_type: {
@@ -90,6 +91,7 @@ const getSimulationData = createServerFn({ method: 'GET' })
           id: schema.ants.id,
           position_x: schema.ants.position_x,
           position_y: schema.ants.position_y,
+          angle: schema.ants.angle,
           colony_id: schema.ants.colony_id,
           state: schema.ants.state,
           ant_type: {
@@ -307,17 +309,32 @@ const SimulationField = ({
             ? `hsl(${ant.ant_type.color_hue}, 70%, 60%)` 
             : `hsl(${ant.ant_type.color_hue}, 60%, 40%)`;
           
+          const imageSize = 8; // Size of the ant image
+          
           return (
-            <circle
-              key={ant.id}
-              cx={Math.min(Number(ant.position_x), fieldWidth)}
-              cy={Math.min(Number(ant.position_y), fieldHeight)}
-              r={2}
-              fill={antColor}
-              className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
-            >
-              <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
-            </circle>
+            <g key={ant.id}>
+              {/* Colored background circle for ant type identification */}
+              <circle
+                cx={Math.min(Number(ant.position_x), fieldWidth)}
+                cy={Math.min(Number(ant.position_y), fieldHeight)}
+                r={imageSize / 2 + 1}
+                fill={antColor}
+                opacity={0.3}
+                className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
+              />
+              {/* Ant image */}
+              <image
+                href="/ant_sprite.png"
+                x={Math.min(Number(ant.position_x), fieldWidth) - imageSize / 2}
+                y={Math.min(Number(ant.position_y), fieldHeight) - imageSize / 2}
+                width={imageSize}
+                height={imageSize}
+                transform={`rotate(${ant.angle} ${Math.min(Number(ant.position_x), fieldWidth)} ${Math.min(Number(ant.position_y), fieldHeight)})`}
+                className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
+              >
+                <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
+              </image>
+            </g>
           );
         })}
       </svg>
