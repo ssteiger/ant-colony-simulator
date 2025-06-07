@@ -7,7 +7,6 @@ import { Input } from '~/lib/components/ui/input'
 import { Textarea } from '~/lib/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/lib/components/ui/dialog'
 
-
 // Server function to create a new simulation
 const createNewSimulation = createServerFn({ method: 'POST' })
   .validator((data: { 
@@ -111,8 +110,8 @@ const createNewSimulation = createServerFn({ method: 'POST' })
 export function CreateSimulationButton() {
   const [isOpen, setIsOpen] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
+    name: 'My Ant Colony',
+    description: 'A new ant colony simulation with worker ants exploring for food sources.',
     worldWidth: 800,
     worldHeight: 600
   })
@@ -123,7 +122,7 @@ export function CreateSimulationButton() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['simulation-data'] })
       setIsOpen(false)
-      setFormData({ name: '', description: '', worldWidth: 800, worldHeight: 600 })
+      setFormData({ name: 'My Ant Colony', description: 'A new ant colony simulation with worker ants exploring for food sources.', worldWidth: 800, worldHeight: 600 })
       queryClient.invalidateQueries()
     }
   })
@@ -196,9 +195,9 @@ export function CreateSimulationButton() {
                   id="worldWidth"
                   type="number"
                   value={formData.worldWidth}
-                  onChange={(e) => handleInputChange('worldWidth', Number.parseInt(e.target.value) || 800)}
+                  onChange={(e) => handleInputChange('worldWidth', Number.parseInt(e.target.value) || 100)}
                   min={10}
-                  max={2000}
+                  max={200}
                 />
               </div>
               <div>
@@ -209,9 +208,9 @@ export function CreateSimulationButton() {
                   id="worldHeight"
                   type="number"
                   value={formData.worldHeight}
-                  onChange={(e) => handleInputChange('worldHeight', Number.parseInt(e.target.value) || 600)}
+                  onChange={(e) => handleInputChange('worldHeight', Number.parseInt(e.target.value) || 100)}
                   min={10}
-                  max={1500}
+                  max={200}
                 />
               </div>
             </div>

@@ -1,15 +1,52 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { postgres_db, schema, eq } from '@ant-colony-simulator/db-drizzle'
+import { postgres_db, schema, eq, and, gt } from '@ant-colony-simulator/db-drizzle'
 import { AddAntsButton } from './-components/add-ants-button'
 import { CreateSimulationButton } from '../-components/create-simulation-button'
+import { DeleteSimulationButton } from './-components/delete-simulation-button'
+import { AddFoodSourcesButton } from './-components/add-food-sources'
 import { Button } from '~/lib/components/ui/button'
-import type { Simulation, Ant, Colony, FoodSource } from '~/types/drizzle'
+import type { Simulation } from '~/types/drizzle'
+
+// Define minimal types for the rendered data
+type RenderAnt = {
+  id: string;
+  position_x: number;
+  position_y: number;
+  colony_id: string;
+  state: string;
+}
+
+type RenderColony = {
+  id: string;
+  name: string;
+  center_x: number;
+  center_y: number;
+  radius: number;
+  color_hue: number;
+}
+
+type RenderFoodSource = {
+  id: string;
+  position_x: number;
+  position_y: number;
+  food_type: string;
+  amount: number;
+}
+
+type RenderPheromoneTrail = {
+  id: string;
+  colony_id: string;
+  trail_type: string;
+  position_x: number;
+  position_y: number;
+  strength: number;
+}
 
 const getSimulationData = createServerFn({ method: 'GET' })
   .validator((data: { simulationId: string }) => data)
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const { simulationId } = data
     console.log('simulationId', simulationId)
     try {
@@ -20,7 +57,7 @@ const getSimulationData = createServerFn({ method: 'GET' })
         .limit(1)
 
       if (simulations.length === 0) {
-        return { simulation: null, ants: [], colonies: [], foodSources: [] }
+        return { simulation: null, ants: [], colonies: [], foodSources: [], pheromoneTrails: [] }
       }
 
       const simulation = simulations[0]
@@ -60,18 +97,40 @@ const getSimulationData = createServerFn({ method: 'GET' })
           amount: schema.food_sources.amount
         })
         .from(schema.food_sources)
-        .where(eq(schema.food_sources.simulation_id, simulationId))
+        .where(and(
+          eq(schema.food_sources.simulation_id, simulationId),
+          gt(schema.food_sources.amount, 0)
+        ))
         .limit(100)
+
+      // Fetch pheromone trails for colonies in this simulation
+      const pheromoneTrails = await postgres_db
+        .select({
+          id: schema.pheromone_trails.id,
+          colony_id: schema.pheromone_trails.colony_id,
+          trail_type: schema.pheromone_trails.trail_type,
+          position_x: schema.pheromone_trails.position_x,
+          position_y: schema.pheromone_trails.position_y,
+          strength: schema.pheromone_trails.strength
+        })
+        .from(schema.pheromone_trails)
+        .innerJoin(schema.colonies, eq(schema.pheromone_trails.colony_id, schema.colonies.id))
+        .where(and(
+          eq(schema.colonies.simulation_id, simulationId),
+          gt(schema.pheromone_trails.strength, 0) // Only show trails with meaningful strength
+        ))
+        .limit(1000)
 
       return {
         simulation,
         ants,
         colonies,
-        foodSources
+        foodSources,
+        pheromoneTrails
       }
     } catch (error) {
       console.error('Database error:', error)
-      return { simulation: null, ants: [], colonies: [], foodSources: [] }
+      return { simulation: null, ants: [], colonies: [], foodSources: [], pheromoneTrails: [] }
     }
   })
 
@@ -79,12 +138,14 @@ const SimulationField = ({
   simulation, 
   ants, 
   colonies, 
-  foodSources 
+  foodSources,
+  pheromoneTrails
 }: { 
   simulation: Simulation | null
-  ants: Ant[]
-  colonies: Colony[]
-  foodSources: FoodSource[]
+  ants: RenderAnt[]
+  colonies: RenderColony[]
+  foodSources: RenderFoodSource[]
+  pheromoneTrails: RenderPheromoneTrail[]
 }) => {
   if (!simulation) {
     return (
@@ -99,6 +160,15 @@ const SimulationField = ({
   const fieldHeight = Math.min(simulation.world_height, 600) // Limit display height
   const gridCols = Math.floor(fieldWidth / gridSize)
   const gridRows = Math.floor(fieldHeight / gridSize)
+
+  // Group pheromone trails by type for different rendering
+  const trailsByType = pheromoneTrails.reduce((acc, trail) => {
+    if (!acc[trail.trail_type]) {
+      acc[trail.trail_type] = []
+    }
+    acc[trail.trail_type].push(trail)
+    return acc
+  }, {} as Record<string, RenderPheromoneTrail[]>)
 
   return (
     <div className="relative border border-gray-300 rounded-lg overflow-hidden" style={{ width: fieldWidth, height: fieldHeight }}>
@@ -128,6 +198,42 @@ const SimulationField = ({
             stroke="#e5e7eb"
             strokeWidth={0.5}
           />
+        ))}
+
+        {/* Pheromone trails - render behind other elements */}
+        {Object.entries(trailsByType).map(([trailType, trails]) => (
+          <g key={`trails-${trailType}`}>
+            {trails.map((trail) => {
+              const colony = colonies.find(c => c.id === trail.colony_id);
+              const opacity = Math.max(0.1, Math.min(0.8, trail.strength));
+              
+              // Different colors for different trail types
+              let trailColor = '#9333ea'; // purple for default
+              if (trailType === 'food') trailColor = '#059669'; // green
+              if (trailType === 'danger') trailColor = '#dc2626'; // red
+              if (trailType === 'territory') trailColor = '#2563eb'; // blue
+              if (trailType === 'recruitment') trailColor = '#ea580c'; // orange
+              
+              // Use colony color if available, otherwise use trail type color
+              const finalColor = colony 
+                ? `hsl(${colony.color_hue}, 70%, 50%)`
+                : trailColor;
+
+              return (
+                <circle
+                  key={trail.id}
+                  cx={Math.min(Number(trail.position_x), fieldWidth)}
+                  cy={Math.min(Number(trail.position_y), fieldHeight)}
+                  r={Math.max(1, trail.strength * 3)}
+                  fill={finalColor}
+                  opacity={opacity}
+                  className="animate-pulse"
+                >
+                  <title>{`${trailType.charAt(0).toUpperCase() + trailType.slice(1)} Trail | Strength: ${Number(trail.strength).toFixed(2)} | Position: (${trail.position_x}, ${trail.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
+                </circle>
+              );
+            })}
+          </g>
         ))}
         
         {/* Food sources */}
@@ -181,7 +287,7 @@ const SimulationField = ({
               cx={Math.min(Number(ant.position_x), fieldWidth)}
               cy={Math.min(Number(ant.position_y), fieldHeight)}
               r={2}
-              fill="#8b4513"
+              fill={ant.state === 'carrying_food' ? '#8b5cf6' : '#8b4513'}
               className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
             >
               <title>{`Ant | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
@@ -221,7 +327,8 @@ const SimulationPage = () => {
               {data.simulation.name} - Tick: {data.simulation.current_tick || 0} | 
               Ants: {data.ants.length} | 
               Colonies: {data.colonies.length} | 
-              Food Sources: {data.foodSources.length}
+              Food Sources: {data.foodSources.length} |
+              Pheromone Trails: {data.pheromoneTrails.length}
             </p>
           )}
           {!hasSimulation && (
@@ -232,6 +339,7 @@ const SimulationPage = () => {
         </div>
         <div className="flex gap-2">
           <CreateSimulationButton />
+          <DeleteSimulationButton />
           <Button 
             onClick={() => refetch()} 
             variant="outline"
@@ -240,13 +348,14 @@ const SimulationPage = () => {
             Refresh
           </Button>
           {hasSimulation && <AddAntsButton />}
+          {hasSimulation && <AddFoodSourcesButton />}
         </div>
       </div>
       
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">Simulation Field</h3>
         <p className="text-sm text-muted-foreground">
-          White grid shows coordinates. Brown dots are ants, colored circles are colonies, green circles are food sources.
+          White grid shows coordinates. Brown dots are ants (purple when carrying food), colored circles are colonies, green circles are food sources, colored dots are pheromone trails.
         </p>
       </div>
 
@@ -283,6 +392,7 @@ const SimulationPage = () => {
           ants={data?.ants || []}
           colonies={data?.colonies || []}
           foodSources={data?.foodSources || []}
+          pheromoneTrails={data?.pheromoneTrails || []}
         />
       )}
       
@@ -313,14 +423,23 @@ const SimulationPage = () => {
           </div>
 
           <div className="bg-white border rounded-lg p-4">
-            <h4 className="font-semibold mb-2">Colonies</h4>
+            <h4 className="font-semibold mb-2">Pheromone Trails</h4>
             <div className="space-y-2 text-sm">
-              {data.colonies.map((colony) => (
-                <div key={colony.id} className="flex justify-between">
-                  <span>{colony.name}:</span>
-                  <span>{data.ants.filter(ant => ant.colony_id === colony.id).length} ants</span>
+              {Object.entries(data.pheromoneTrails.reduce((acc, trail) => {
+                if (!acc[trail.trail_type]) {
+                  acc[trail.trail_type] = 0
+                }
+                acc[trail.trail_type]++
+                return acc
+              }, {} as Record<string, number>)).map(([trailType, count]) => (
+                <div key={trailType} className="flex justify-between">
+                  <span className="capitalize">{trailType}:</span>
+                  <span>{count}</span>
                 </div>
               ))}
+              {data.pheromoneTrails.length === 0 && (
+                <p className="text-gray-500 text-xs">No active trails</p>
+              )}
             </div>
           </div>
 
@@ -335,6 +454,19 @@ const SimulationPage = () => {
               ))}
             </div>
           </div>
+
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Colonies</h4>
+            <div className="space-y-2 text-sm">
+              {data.colonies.map((colony) => (
+                <div key={colony.id} className="flex justify-between">
+                  <span>{colony.name}:</span>
+                  <span>{data.ants.filter(ant => ant.colony_id === colony.id).length} ants</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       )}
     </div>

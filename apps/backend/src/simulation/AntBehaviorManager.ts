@@ -1,18 +1,34 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ant, FoodSource } from '../types/drizzle'
 import type { Database } from '../types/supabase'
+import { PheromoneManager } from './PheromoneManager'
+
+// Extended ant type with joined relations from Supabase query
+type AntWithRelations = Ant & {
+  colonies: { simulation_id: string } | null
+  ant_types: { 
+    role: string 
+    base_speed: number 
+    base_strength: number 
+    carrying_capacity: number 
+    special_abilities: unknown 
+  } | null
+}
 
 export class AntBehaviorManager {
   private supabase: SupabaseClient<Database>
   private simulationId: string | null = null
+  private pheromoneManager: PheromoneManager
 
   constructor(supabase: SupabaseClient<Database>) {
     this.supabase = supabase
+    this.pheromoneManager = new PheromoneManager(supabase)
     console.log('🐜 AntBehaviorManager: Constructor initialized')
   }
 
   async initialize(simulationId: string): Promise<void> {
     this.simulationId = simulationId
+    await this.pheromoneManager.initialize(simulationId)
     console.log('🐜 AntBehaviorManager: Initialized for simulation:', simulationId)
   }
 
@@ -23,12 +39,13 @@ export class AntBehaviorManager {
 
     console.log(`🐜 AntBehaviorManager: Processing tick ${tick}`)
 
-    // Get all living ants in the simulation
+    // Get all living ants in the simulation with their ant type information
     const { data: ants } = await this.supabase
       .from('ants')
       .select(`
         *,
-        colonies(simulation_id)
+        colonies(simulation_id),
+        ant_types(role, base_speed, base_strength, carrying_capacity, special_abilities)
       `)
       .neq('state', 'dead')
 
@@ -51,7 +68,7 @@ export class AntBehaviorManager {
 
     for (const ant of simulationAnts) {
       try {
-        const result = await this.processAntBehavior(ant, tick)
+        const result = await this.processAntBehavior(ant as AntWithRelations, tick)
         if (result === 'dead') {
           deadCount++
         } else {
@@ -66,7 +83,7 @@ export class AntBehaviorManager {
     console.log(`🐜 AntBehaviorManager: Tick ${tick} complete - Processed: ${processedCount}, Died: ${deadCount}, Errors: ${errorCount}`)
   }
 
-  private async processAntBehavior(ant: Ant, tick: number): Promise<string> {
+  private async processAntBehavior(ant: AntWithRelations, tick: number): Promise<string> {
     try {
       console.log(`🐜 Processing ant ${ant.id}: state=${ant.state}, energy=${ant.energy}, position=(${ant.position_x}, ${ant.position_y})`)
       
@@ -115,24 +132,59 @@ export class AntBehaviorManager {
     }
   }
 
-  private async determineAntAction(ant: Ant): Promise<string> {
-    // Simple state machine for ant behavior
+  private async determineAntAction(ant: AntWithRelations): Promise<string> {
+    // Get ant role from type information
+    const antType = ant.ant_types as { role: string; base_speed: number; carrying_capacity: number; special_abilities?: unknown } | null
+    const role = antType?.role || 'worker'
+
+    // Role-based behavior modifications
     switch (ant.state) {
       case 'wandering': {
         // Look for food or follow pheromone trails
         const nearbyFood = await this.findNearbyFood(ant.position_x, ant.position_y, 50)
         if (nearbyFood) {
-          console.log(`🐜 Ant ${ant.id} found nearby food: ${nearbyFood.food_type} at (${nearbyFood.position_x.toFixed(1)}, ${nearbyFood.position_y.toFixed(1)})`)
-          return 'seek_food'
+          // Workers and scouts prioritize food, soldiers are less interested
+          if (role === 'soldier') {
+            // Soldiers only collect food if it's very close and they're not patrolling
+            const foodDistance = Math.sqrt(
+              (nearbyFood.position_x - ant.position_x) ** 2 + 
+              (nearbyFood.position_y - ant.position_y) ** 2
+            )
+            if (foodDistance < 20) {
+              console.log(`🐜 Soldier ant ${ant.id} found very nearby food: ${nearbyFood.food_type}`)
+              return 'seek_food'
+            }
+          } else {
+            console.log(`🐜 ${role} ant ${ant.id} found nearby food: ${nearbyFood.food_type} at (${nearbyFood.position_x.toFixed(1)}, ${nearbyFood.position_y.toFixed(1)})`)
+            return 'seek_food'
+          }
         }
-        return 'wander'
+
+        // Check for pheromone trails to follow
+        const searchRadius = role === 'scout' ? 40 : role === 'worker' ? 30 : 25 // Scouts have wider search
+        const pheromoneInfluence = await this.pheromoneManager.getPheromoneInfluence(
+          ant.position_x, 
+          ant.position_y, 
+          ant.colony_id,
+          searchRadius
+        )
+
+        // Role-based pheromone following behavior
+        const followThreshold = role === 'scout' ? 0.05 : role === 'worker' ? 0.1 : 0.15 // Scouts follow weaker trails
+        if (pheromoneInfluence.strength > followThreshold) {
+          console.log(`🐜 ${role} ant ${ant.id} detected pheromone trail (strength: ${pheromoneInfluence.strength.toFixed(3)})`)
+          return 'follow_pheromone_trail'
+        }
+
+        // Scouts wander more aggressively (longer distances), soldiers patrol more systematically
+        return role === 'scout' ? 'scout_explore' : role === 'soldier' ? 'patrol' : 'wander'
       }
 
       case 'seeking_food': {
         // Check if ant reached its food target
         if (ant.target_id) {
           const distance = await this.getDistanceToTarget(ant, ant.target_id)
-          console.log(`🐜 Ant ${ant.id} distance to food target: ${distance.toFixed(1)}`)
+          console.log(`🐜 ${role} ant ${ant.id} distance to food target: ${distance.toFixed(1)}`)
           if (distance < 5) {
             return 'collect_food'
           }
@@ -142,17 +194,17 @@ export class AntBehaviorManager {
 
       case 'carrying_food': {
         // Return to colony
-        console.log(`🐜 Ant ${ant.id} carrying food, returning to colony`)
+        console.log(`🐜 ${role} ant ${ant.id} carrying food, returning to colony`)
         return 'return_to_colony'
       }
 
       default:
-        console.log(`🐜 Ant ${ant.id} in unknown state: ${ant.state}, defaulting to wander`)
+        console.log(`🐜 ${role} ant ${ant.id} in unknown state: ${ant.state}, defaulting to wander`)
         return 'wander'
     }
   }
 
-  private async executeAntAction(ant: Ant, action: string): Promise<void> {
+  private async executeAntAction(ant: AntWithRelations, action: string): Promise<void> {
     console.log(`🐜 Executing action '${action}' for ant ${ant.id}`)
     
     switch (action) {
@@ -160,8 +212,20 @@ export class AntBehaviorManager {
         await this.moveAntRandomly(ant)
         break
 
+      case 'scout_explore':
+        await this.scoutExplore(ant)
+        break
+
+      case 'patrol':
+        await this.soldierPatrol(ant)
+        break
+
       case 'seek_food':
         await this.moveAntTowardsFood(ant)
+        break
+
+      case 'follow_pheromone_trail':
+        await this.followPheromoneTrail(ant)
         break
 
       case 'move_to_food':
@@ -181,7 +245,7 @@ export class AntBehaviorManager {
     }
   }
 
-  private async moveAntRandomly(ant: Ant): Promise<void> {
+  private async moveAntRandomly(ant: AntWithRelations): Promise<void> {
     // Fetch world bounds from simulation
     const { data: simulation } = await this.supabase
       .from('simulations')
@@ -194,34 +258,85 @@ export class AntBehaviorManager {
       return
     }
 
-    // Generate random movement
-    const moveDistance = ant.current_speed
-    const randomAngle = Math.random() * 2 * Math.PI
-    
-    const newX = ant.position_x + Math.cos(randomAngle) * moveDistance
-    const newY = ant.position_y + Math.sin(randomAngle) * moveDistance
+    // Lévy Flight parameters
+    const mu = 2.0 // Power-law exponent (1 < μ ≤ 3, optimal foraging ≈ 2.0)
+    const minStepLength = ant.current_speed * 0.5 // Minimum step length
+    const maxStepLength = ant.current_speed * 10 // Maximum step length to prevent huge jumps
 
-    // Use dynamic world bounds from simulation and round to integers
-    const boundedX = Math.round(Math.max(0, Math.min(simulation.world_width, newX)))
-    const boundedY = Math.round(Math.max(0, Math.min(simulation.world_height, newY)))
+    // Generate Lévy Flight step length using inverse transform sampling
+    // P(l) ∝ l^(-μ) → l = l_min * (1 - u)^(-1/(μ-1))
+    const u = Math.random()
+    let stepLength = minStepLength * (1 - u) ** (-1 / (mu - 1))
+    
+    // Cap the step length to prevent extremely long jumps that break the simulation
+    stepLength = Math.min(stepLength, maxStepLength)
+
+    // Generate random direction (uniform distribution)
+    const direction = Math.random() * 2 * Math.PI
+
+    // Calculate new position
+    const newX = ant.position_x + Math.cos(direction) * stepLength
+    const newY = ant.position_y + Math.sin(direction) * stepLength
+
+    // Handle boundary conditions with wrapping or reflecting
+    let boundedX = newX
+    let boundedY = newY
+    let finalAngle = direction
+
+    // Boundary collision detection with reflection
+    if (newX < 0) {
+      boundedX = Math.abs(newX) // Reflect off left boundary
+      finalAngle = Math.PI - direction
+    } else if (newX > simulation.world_width) {
+      boundedX = simulation.world_width - (newX - simulation.world_width)
+      finalAngle = Math.PI - direction
+    }
+
+    if (newY < 0) {
+      boundedY = Math.abs(newY) // Reflect off top boundary
+      finalAngle = -direction
+    } else if (newY > simulation.world_height) {
+      boundedY = simulation.world_height - (newY - simulation.world_height)
+      finalAngle = -direction
+    }
+
+    // Ensure we stay within bounds after reflection
+    boundedX = Math.max(0, Math.min(simulation.world_width, boundedX))
+    boundedY = Math.max(0, Math.min(simulation.world_height, boundedY))
+
+    // Normalize angle to [0, 2π] range
+    finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
+
+    // Round positions to integers
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
 
     // Convert angle from radians to degrees and round to integer
-    const angleDegrees = Math.round((randomAngle * 180) / Math.PI)
+    const angleDegrees = Math.round((finalAngle * 180) / Math.PI)
 
-    console.log(`🐜 Moving ant ${ant.id} randomly from (${ant.position_x}, ${ant.position_y}) to (${boundedX}, ${boundedY}) within bounds (${simulation.world_width}x${simulation.world_height})`)
+    // Calculate actual distance moved for logging
+    const actualDistance = Math.sqrt(
+      (roundedX - ant.position_x) ** 2 + (roundedY - ant.position_y) ** 2
+    )
+
+    // Determine if this was a "long jump" (above 2x normal speed)
+    const isLongJump = stepLength > ant.current_speed * 2
+    const jumpType = isLongJump ? "LONG JUMP" : "local step"
+
+    console.log(`🐜 Lévy Flight: Ant ${ant.id} ${jumpType} (${actualDistance.toFixed(1)} units) from (${ant.position_x}, ${ant.position_y}) to (${roundedX}, ${roundedY}) at ${angleDegrees}°`)
 
     await this.supabase
       .from('ants')
       .update({
-        position_x: boundedX,
-        position_y: boundedY,
+        position_x: roundedX,
+        position_y: roundedY,
         angle: angleDegrees,
         last_updated: new Date().toISOString()
       })
       .eq('id', ant.id)
   }
 
-  private async moveAntTowardsFood(ant: Ant): Promise<void> {
+  private async moveAntTowardsFood(ant: AntWithRelations): Promise<void> {
     const nearbyFood = await this.findNearbyFood(ant.position_x, ant.position_y, 100)
     
     if (nearbyFood) {
@@ -264,7 +379,7 @@ export class AntBehaviorManager {
     }
   }
 
-  private async moveAntTowardsTarget(ant: Ant): Promise<void> {
+  private async moveAntTowardsTarget(ant: AntWithRelations): Promise<void> {
     if (!ant.target_x || !ant.target_y) {
       console.warn(`🐜 Ant ${ant.id} has no target coordinates`)
       return
@@ -293,7 +408,7 @@ export class AntBehaviorManager {
       .eq('id', ant.id)
   }
 
-  private async moveAntTowardsColony(ant: Ant): Promise<void> {
+  private async moveAntTowardsColony(ant: AntWithRelations): Promise<void> {
     // Get colony position
     const { data: colony } = await this.supabase
       .from('colonies')
@@ -321,6 +436,22 @@ export class AntBehaviorManager {
 
     console.log(`🐜 Moving ant ${ant.id} towards colony '${colony.name}' - distance: ${distance.toFixed(1)}`)
 
+    // Ants carrying food lay pheromone trails on their way back to colony
+    // This is the classic behavior that creates reinforcement of successful paths
+    if (ant.state === 'carrying_food') {
+      try {
+        await this.pheromoneManager.createFoodTrailAt(
+          ant.position_x,
+          ant.position_y,
+          ant.colony_id,
+          0.6 // Moderate strength - not as strong as discovery trails
+        )
+        console.log(`🐜 Ant ${ant.id} laid pheromone trail while carrying food home`)
+      } catch (error) {
+        // Don't log trail laying errors - they're common and expected
+      }
+    }
+
     if (distance < 15) {
       // Ant reached colony - deposit food and change state
       console.log(`🐜 Ant ${ant.id} reached colony '${colony.name}', depositing food`)
@@ -340,7 +471,7 @@ export class AntBehaviorManager {
     }
   }
 
-  private async collectFood(ant: Ant): Promise<void> {
+  private async collectFood(ant: AntWithRelations): Promise<void> {
     if (!ant.target_id) {
       console.warn(`🐜 Ant ${ant.id} trying to collect food but has no target_id`)
       return
@@ -396,12 +527,27 @@ export class AntBehaviorManager {
       })
       .eq('id', ant.id)
 
+    // Create a strong pheromone marker at the food source to attract other ants
+    // This represents the key discovery behavior - successful foragers mark good spots
+    try {
+      await this.pheromoneManager.createFoodTrailAt(
+        ant.position_x,
+        ant.position_y,
+        ant.colony_id,
+        1.0, // Strong initial strength
+        foodSource.id
+      )
+      console.log(`🐜 Ant ${ant.id} marked food location with strong pheromone trail`)
+    } catch (error) {
+      console.warn('Failed to create pheromone trail at food source:', error)
+    }
+
     if (newFoodAmount <= 0) {
       console.log(`🐜 Food source ${foodSource.id} (${foodSource.food_type}) has been depleted`)
     }
   }
 
-  private async depositFood(ant: Ant): Promise<void> {
+  private async depositFood(ant: AntWithRelations): Promise<void> {
     const carriedResources = (ant.carried_resources as Record<string, number>) || {}
     
     if (Object.keys(carriedResources).length === 0) {
@@ -497,7 +643,7 @@ export class AntBehaviorManager {
     return closestFood
   }
 
-  private async getDistanceToTarget(ant: Ant, targetId: string): Promise<number> {
+  private async getDistanceToTarget(ant: AntWithRelations, targetId: string): Promise<number> {
     const { data: target } = await this.supabase
       .from('food_sources')
       .select('position_x, position_y')
@@ -523,5 +669,290 @@ export class AntBehaviorManager {
       .eq('id', antId)
 
     console.log(`💀 Ant ${antId} died from ${cause}`)
+  }
+
+  private async followPheromoneTrail(ant: AntWithRelations): Promise<void> {
+    // Get pheromone influence at current position
+    const pheromoneInfluence = await this.pheromoneManager.getPheromoneInfluence(
+      ant.position_x, 
+      ant.position_y, 
+      ant.colony_id,
+      25
+    )
+
+    if (pheromoneInfluence.strength === 0) {
+      // No pheromone trail found, fall back to random movement
+      console.log(`🐜 Ant ${ant.id} lost pheromone trail, switching to random movement`)
+      await this.moveAntRandomly(ant)
+      return
+    }
+
+    // Combine pheromone direction with some randomness (realistic behavior)
+    // Stronger pheromone trails are followed more precisely
+    const pheromoneWeight = Math.min(0.8, pheromoneInfluence.strength * 2) // Max 80% influence
+    const randomWeight = 1 - pheromoneWeight
+
+    // Generate some randomness for realistic movement
+    const randomAngle = (Math.random() - 0.5) * Math.PI * 0.5 // ±45 degrees random variation
+    const combinedDirection = pheromoneInfluence.direction + (randomAngle * randomWeight)
+
+    // Calculate movement distance - ants move more confidently on strong trails
+    const baseSpeed = ant.current_speed
+    const speedMultiplier = 1 + (pheromoneInfluence.strength * 0.5) // Up to 50% speed boost on strong trails
+    const moveDistance = baseSpeed * speedMultiplier
+
+    // Calculate new position
+    const newX = ant.position_x + Math.cos(combinedDirection) * moveDistance
+    const newY = ant.position_y + Math.sin(combinedDirection) * moveDistance
+
+    // Ensure position stays within world bounds
+    const { data: simulation } = await this.supabase
+      .from('simulations')
+      .select('world_width, world_height')
+      .eq('id', this.simulationId)
+      .single()
+
+    if (!simulation) {
+      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      return
+    }
+
+    const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
+    const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
+
+    // Round positions to integers
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
+
+    // Convert angle from radians to degrees
+    const angleDegrees = Math.round((combinedDirection * 180) / Math.PI)
+
+    console.log(`🐜 Ant ${ant.id} following pheromone trail (strength: ${pheromoneInfluence.strength.toFixed(3)}, weight: ${pheromoneWeight.toFixed(2)}) from (${ant.position_x}, ${ant.position_y}) to (${roundedX}, ${roundedY})`)
+
+    // Check if we found food while following the trail
+    const nearbyFood = await this.findNearbyFood(roundedX, roundedY, 15)
+    let newState = ant.state
+    let targetId = ant.target_id
+    let targetX = ant.target_x
+    let targetY = ant.target_y
+    let targetType = ant.target_type
+
+    if (nearbyFood) {
+      console.log(`🐜 Ant ${ant.id} found food while following pheromone trail: ${nearbyFood.food_type}`)
+      newState = 'seeking_food'
+      targetId = nearbyFood.id
+      targetX = nearbyFood.position_x
+      targetY = nearbyFood.position_y
+      targetType = 'food_source'
+    }
+
+    await this.supabase
+      .from('ants')
+      .update({
+        position_x: roundedX,
+        position_y: roundedY,
+        angle: angleDegrees,
+        state: newState,
+        target_id: targetId,
+        target_x: targetX,
+        target_y: targetY,
+        target_type: targetType,
+        last_updated: new Date().toISOString()
+      })
+      .eq('id', ant.id)
+  }
+
+  private async scoutExplore(ant: AntWithRelations): Promise<void> {
+    // Scouts move with longer, more aggressive exploration patterns
+    // They're designed to find new food sources and create initial trails
+    
+    const { data: simulation } = await this.supabase
+      .from('simulations')
+      .select('world_width, world_height')
+      .eq('id', this.simulationId)
+      .single()
+
+    if (!simulation) {
+      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      return
+    }
+
+    // Enhanced Lévy Flight for scouts - more aggressive exploration
+    const mu = 1.8 // Lower mu = longer jumps for exploration
+    const baseSpeed = ant.current_speed
+    const scoutSpeedBonus = 1.3 // Scouts move 30% faster
+    const minStepLength = baseSpeed * scoutSpeedBonus * 0.7
+    const maxStepLength = baseSpeed * scoutSpeedBonus * 15 // Longer max jumps
+
+    // Generate Lévy Flight step length
+    const u = Math.random()
+    let stepLength = minStepLength * (1 - u) ** (-1 / (mu - 1))
+    stepLength = Math.min(stepLength, maxStepLength)
+
+    // Scouts prefer to move towards unexplored areas (away from colony center slightly)
+    const { data: colony } = await this.supabase
+      .from('colonies')
+      .select('center_x, center_y')
+      .eq('id', ant.colony_id)
+      .single()
+
+    let direction: number
+    if (colony) {
+      // Bias direction slightly away from colony (but not too much)
+      const awayFromColony = Math.atan2(
+        ant.position_y - colony.center_y,
+        ant.position_x - colony.center_x
+      )
+      const randomVariation = (Math.random() - 0.5) * Math.PI // ±90 degrees variation
+      direction = awayFromColony + randomVariation
+    } else {
+      direction = Math.random() * 2 * Math.PI
+    }
+
+    // Calculate new position
+    const newX = ant.position_x + Math.cos(direction) * stepLength
+    const newY = ant.position_y + Math.sin(direction) * stepLength
+
+    // Handle boundaries with reflection
+    let boundedX = newX
+    let boundedY = newY
+    let finalAngle = direction
+
+    if (newX < 0) {
+      boundedX = Math.abs(newX)
+      finalAngle = Math.PI - direction
+    } else if (newX > simulation.world_width) {
+      boundedX = simulation.world_width - (newX - simulation.world_width)
+      finalAngle = Math.PI - direction
+    }
+
+    if (newY < 0) {
+      boundedY = Math.abs(newY)
+      finalAngle = -direction
+    } else if (newY > simulation.world_height) {
+      boundedY = simulation.world_height - (newY - simulation.world_height)
+      finalAngle = -direction
+    }
+
+    boundedX = Math.max(0, Math.min(simulation.world_width, boundedX))
+    boundedY = Math.max(0, Math.min(simulation.world_height, boundedY))
+
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
+    const angleDegrees = Math.round(((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI) * 180 / Math.PI)
+
+    console.log(`🔍 Scout ant ${ant.id} exploring: moved ${stepLength.toFixed(1)} units to (${roundedX}, ${roundedY})`)
+
+    // Scouts are more likely to detect food from further away
+    const nearbyFood = await this.findNearbyFood(roundedX, roundedY, 80) // Larger detection radius
+    if (nearbyFood) {
+      console.log(`🔍 Scout ant ${ant.id} discovered food: ${nearbyFood.food_type}!`)
+      // Create a strong discovery trail immediately
+      try {
+        await this.pheromoneManager.createFoodTrailAt(
+          roundedX,
+          roundedY,
+          ant.colony_id,
+          0.9, // Strong discovery trail
+          nearbyFood.id
+        )
+      } catch (error) {
+        // Ignore trail creation errors
+      }
+    }
+
+    await this.supabase
+      .from('ants')
+      .update({
+        position_x: roundedX,
+        position_y: roundedY,
+        angle: angleDegrees,
+        last_updated: new Date().toISOString()
+      })
+      .eq('id', ant.id)
+  }
+
+  private async soldierPatrol(ant: AntWithRelations): Promise<void> {
+    // Soldiers patrol in a more systematic pattern around the colony
+    // They move in expanding circles or follow defensive patterns
+    
+    const { data: colony } = await this.supabase
+      .from('colonies')
+      .select('center_x, center_y, name')
+      .eq('id', ant.colony_id)
+      .single()
+
+    if (!colony) {
+      console.error(`🐜 Soldier ant ${ant.id} cannot find colony ${ant.colony_id}`)
+      await this.moveAntRandomly(ant)
+      return
+    }
+
+    const { data: simulation } = await this.supabase
+      .from('simulations')
+      .select('world_width, world_height')
+      .eq('id', this.simulationId)
+      .single()
+
+    if (!simulation) {
+      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      return
+    }
+
+    // Calculate distance from colony
+    const distanceFromColony = Math.sqrt(
+      (ant.position_x - colony.center_x) ** 2 + 
+      (ant.position_y - colony.center_y) ** 2
+    )
+
+    // Soldiers patrol within a certain radius of the colony (defensive perimeter)
+    const patrolRadius = 60
+    const baseSpeed = ant.current_speed
+    
+    let direction: number
+    const moveDistance = baseSpeed
+
+    if (distanceFromColony > patrolRadius) {
+      // Too far from colony, move back towards it
+      direction = Math.atan2(
+        colony.center_y - ant.position_y,
+        colony.center_x - ant.position_x
+      )
+      console.log(`⚔️ Soldier ant ${ant.id} returning to patrol perimeter (distance: ${distanceFromColony.toFixed(1)})`)
+    } else {
+      // Within patrol area, move in circular pattern around colony
+      const angleToColony = Math.atan2(
+        ant.position_y - colony.center_y,
+        ant.position_x - colony.center_x
+      )
+      
+      // Add some angular movement to create circular patrol
+      const patrolDirection = angleToColony + (Math.PI / 3) // 60 degrees ahead
+      direction = patrolDirection + (Math.random() - 0.5) * 0.5 // Small random variation
+      
+      console.log(`⚔️ Soldier ant ${ant.id} patrolling around colony '${colony.name}'`)
+    }
+
+    // Calculate new position
+    const newX = ant.position_x + Math.cos(direction) * moveDistance
+    const newY = ant.position_y + Math.sin(direction) * moveDistance
+
+    // Ensure position stays within world bounds
+    const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
+    const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
+
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
+    const angleDegrees = Math.round((direction * 180) / Math.PI)
+
+    await this.supabase
+      .from('ants')
+      .update({
+        position_x: roundedX,
+        position_y: roundedY,
+        angle: angleDegrees,
+        last_updated: new Date().toISOString()
+      })
+      .eq('id', ant.id)
   }
 } 

@@ -269,4 +269,57 @@ export class PheromoneManager {
       console.error('🔬 PheromoneManager: ❌ Failed to create danger trail:', error)
     }
   }
+
+  async createFoodTrailAt(x: number, y: number, colonyId: string, strength = 0.8, targetFoodId?: string): Promise<void> {
+    console.log(`🔬 PheromoneManager: Creating food trail at (${x.toFixed(1)}, ${y.toFixed(1)}) for colony ${colonyId} with strength ${strength.toFixed(2)}`)
+    
+    try {
+      // Check if there's already a recent trail at this position
+      const { data: existingTrail } = await this.supabase
+        .from('pheromone_trails')
+        .select('*')
+        .eq('colony_id', colonyId)
+        .eq('trail_type', 'food')
+        .gte('position_x', x - 3)
+        .lte('position_x', x + 3)
+        .gte('position_y', y - 3)
+        .lte('position_y', y + 3)
+        .gt('strength', 0.3)
+        .limit(1)
+        .single()
+
+      // If there's already a trail nearby, strengthen it instead
+      if (existingTrail) {
+        const newStrength = Math.min(1.0, existingTrail.strength + (strength * 0.5))
+        await this.supabase
+          .from('pheromone_trails')
+          .update({ strength: newStrength })
+          .eq('id', existingTrail.id)
+        
+        console.log(`🔬 Strengthened existing food trail (${existingTrail.strength.toFixed(2)} → ${newStrength.toFixed(2)})`)
+        return
+      }
+
+      // Create new pheromone trail
+      const expiresAt = new Date()
+      expiresAt.setMinutes(expiresAt.getMinutes() + 45) // Food discovery trails last longer
+
+      await this.supabase
+        .from('pheromone_trails')
+        .insert({
+          colony_id: colonyId,
+          trail_type: 'food',
+          position_x: x,
+          position_y: y,
+          strength: Math.min(1.0, strength),
+          decay_rate: 0.001, // Slower decay for discovered food locations
+          expires_at: expiresAt.toISOString(),
+          target_food_id: targetFoodId
+        })
+
+      console.log(`🔬 PheromoneManager: ✅ Created food discovery trail at (${x.toFixed(1)}, ${y.toFixed(1)}) with strength ${strength.toFixed(2)}`)
+    } catch (error) {
+      console.error('🔬 PheromoneManager: ❌ Failed to create food trail:', error)
+    }
+  }
 } 
