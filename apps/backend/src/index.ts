@@ -37,11 +37,11 @@ async function startServer() {
       try {
         const stats = await simulator.getSimulationStats()
         console.log('Simulation Stats:', {
-          totalAnts: stats.totalAnts,
-          activeColonies: stats.activeColonies,
-          foodCollected: stats.totalFoodCollected,
-          activePheromoneTrails: stats.activePheromoneTrails,
-          currentTick: stats.currentTick
+          total_ants: stats.total_ants,
+          active_combats: stats.active_combats,
+          total_food_collected: stats.total_food_collected,
+          pheromone_trail_count: stats.pheromone_trail_count,
+          tick_number: stats.tick_number
         })
       } catch (error) {
         console.error('Error getting simulation stats:', error)

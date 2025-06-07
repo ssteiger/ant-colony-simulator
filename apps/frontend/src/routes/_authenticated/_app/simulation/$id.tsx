@@ -6,6 +6,7 @@ import { AddAntsButton } from './-components/add-ants-button'
 import { CreateSimulationButton } from '../-components/create-simulation-button'
 import { DeleteSimulationButton } from './-components/delete-simulation-button'
 import { AddFoodSourcesButton } from './-components/add-food-sources'
+import { ResetAntPositionsButton } from './-components/reset-ant-positions'
 import { Button } from '~/lib/components/ui/button'
 import type { Simulation } from '~/types/drizzle'
 
@@ -392,6 +393,7 @@ const SimulationPage = () => {
           </Button>
           {hasSimulation && <AddAntsButton />}
           {hasSimulation && <AddFoodSourcesButton />}
+          {hasSimulation && <ResetAntPositionsButton />}
         </div>
       </div>
       

@@ -303,8 +303,8 @@ export class AntBehaviorManager {
     finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
 
     // Round positions to integers
-    const roundedX = Math.ceil(boundedX)
-    const roundedY = Math.ceil(boundedY)
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
 
     // Convert angle from radians to degrees and round to integer
     const angleDegrees = Math.round((finalAngle * 180) / Math.PI)
@@ -340,8 +340,8 @@ export class AntBehaviorManager {
       const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
       // Round positions to integers
-      const roundedX = Math.ceil(newX)
-      const roundedY = Math.ceil(newY)
+      const roundedX = Math.round(newX)
+      const roundedY = Math.round(newY)
 
       // Convert angle from radians to degrees and round to integer
       const angleDegrees = Math.round((angle * 180) / Math.PI)
@@ -381,8 +381,8 @@ export class AntBehaviorManager {
     const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
     // Round positions to integers
-    const roundedX = Math.ceil(newX)
-    const roundedY = Math.ceil(newY)
+    const roundedX = Math.round(newX)
+    const roundedY = Math.round(newY)
 
     // Convert angle from radians to degrees and round to integer
     const angleDegrees = Math.round((angle * 180) / Math.PI)
@@ -417,8 +417,8 @@ export class AntBehaviorManager {
     const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
     // Round positions to integers
-    const roundedX = Math.ceil(newX)
-    const roundedY = Math.ceil(newY)
+    const roundedX = Math.round(newX)
+    const roundedY = Math.round(newY)
 
     // Check if ant reached colony
     const distance = Math.sqrt(
@@ -712,8 +712,8 @@ export class AntBehaviorManager {
     const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
 
     // Round positions to integers
-    const roundedX = Math.ceil(boundedX)
-    const roundedY = Math.ceil(boundedY)
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
 
     // Convert angle from radians to degrees
     const angleDegrees = Math.round((combinedDirection * 180) / Math.PI)
@@ -844,8 +844,8 @@ export class AntBehaviorManager {
     // Normalize angle to [0, 2π] range
     finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
 
-    const roundedX = Math.ceil(boundedX)
-    const roundedY = Math.ceil(boundedY)
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
     const angleDegrees = Math.round((finalAngle * 180) / Math.PI)
 
     // Calculate actual distance moved for logging
@@ -953,8 +953,8 @@ export class AntBehaviorManager {
     const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
     const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
 
-    const roundedX = Math.ceil(boundedX)
-    const roundedY = Math.ceil(boundedY)
+    const roundedX = Math.round(boundedX)
+    const roundedY = Math.round(boundedY)
     const angleDegrees = Math.round((direction * 180) / Math.PI)
 
     await this.supabase
