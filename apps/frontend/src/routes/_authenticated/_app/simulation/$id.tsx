@@ -37,6 +37,7 @@ type RenderColony = {
   center_y: number;
   radius: number;
   color_hue: number;
+  resources: Record<string, number>;
 }
 
 type RenderFoodSource = {
@@ -81,7 +82,8 @@ const getSimulationData = createServerFn({ method: 'GET' })
           center_x: schema.colonies.center_x,
           center_y: schema.colonies.center_y,
           radius: schema.colonies.radius,
-          color_hue: schema.colonies.color_hue
+          color_hue: schema.colonies.color_hue,
+          resources: schema.colonies.resources
         })
         .from(schema.colonies)
         .where(eq(schema.colonies.simulation_id, simulationId))
@@ -528,6 +530,41 @@ const SimulationPage = () => {
           </div>
 
           <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Colony Resources</h4>
+            <div className="space-y-3 text-sm">
+              {data.colonies.map((colony) => {
+                const resources = colony.resources as Record<string, number> || {};
+                const totalResources = Object.values(resources).reduce((sum, value) => sum + (Number(value) || 0), 0);
+                return (
+                  <div key={colony.id} className="border-l-4 pl-3" style={{ borderColor: `hsl(${colony.color_hue}, 60%, 50%)` }}>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium">{colony.name}</span>
+                      <span className="text-gray-600">Total: {totalResources.toFixed(1)}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-amber-600">🌾 Seeds:</span>
+                        <span>{Number(resources.seeds || 0).toFixed(1)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">🍯 Sugar:</span>
+                        <span>{Number(resources.sugar || 0).toFixed(1)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-red-600">🥩 Protein:</span>
+                        <span>{Number(resources.protein || 0).toFixed(1)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {data.colonies.length === 0 && (
+                <p className="text-gray-500 text-xs">No colonies found</p>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Food Sources</h4>
             <div className="space-y-2 text-sm">
               {data.foodSources.map((food) => (
@@ -538,6 +575,8 @@ const SimulationPage = () => {
               ))}
             </div>
           </div>
+
+          
         </div>
       )}
     </div>
