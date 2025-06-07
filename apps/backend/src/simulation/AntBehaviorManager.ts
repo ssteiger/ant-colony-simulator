@@ -1,18 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ant, FoodSource } from '../types/drizzle'
+import type { Ant, FoodSource, AntType } from '../types/drizzle'
 import type { Database } from '../types/supabase'
 import { PheromoneManager } from './PheromoneManager'
 
 // Extended ant type with joined relations from Supabase query
 type AntWithRelations = Ant & {
   colonies: { simulation_id: string } | null
-  ant_types: { 
-    role: string 
-    base_speed: number 
-    base_strength: number 
-    carrying_capacity: number 
-    special_abilities: unknown 
-  } | null
+  ant_types: AntType | null
 }
 
 export class AntBehaviorManager {
@@ -134,8 +128,8 @@ export class AntBehaviorManager {
 
   private async determineAntAction(ant: AntWithRelations): Promise<string> {
     // Get ant role from type information
-    const antType = ant.ant_types as { role: string; base_speed: number; carrying_capacity: number; special_abilities?: unknown } | null
-    const role = antType?.role || 'worker'
+    const antType = ant.ant_types as AntType
+    const role = antType.role
 
     // Role-based behavior modifications
     switch (ant.state) {

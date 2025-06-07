@@ -16,6 +16,16 @@ type RenderAnt = {
   position_y: number;
   colony_id: string;
   state: string;
+  ant_type: {
+    id: number;
+    name: string;
+    role: string;
+    color_hue: number;
+    base_speed: number;
+    base_strength: number;
+    base_health: number;
+    carrying_capacity: number;
+  };
 }
 
 type RenderColony = {
@@ -81,10 +91,21 @@ const getSimulationData = createServerFn({ method: 'GET' })
           position_x: schema.ants.position_x,
           position_y: schema.ants.position_y,
           colony_id: schema.ants.colony_id,
-          state: schema.ants.state
+          state: schema.ants.state,
+          ant_type: {
+            id: schema.ant_types.id,
+            name: schema.ant_types.name,
+            role: schema.ant_types.role,
+            color_hue: schema.ant_types.color_hue,
+            base_speed: schema.ant_types.base_speed,
+            base_strength: schema.ant_types.base_strength,
+            base_health: schema.ant_types.base_health,
+            carrying_capacity: schema.ant_types.carrying_capacity,
+          }
         })
         .from(schema.ants)
         .innerJoin(schema.colonies, eq(schema.ants.colony_id, schema.colonies.id))
+        .innerJoin(schema.ant_types, eq(schema.ants.ant_type_id, schema.ant_types.id))
         .where(eq(schema.colonies.simulation_id, simulationId))
         .limit(500)
 
@@ -281,16 +302,21 @@ const SimulationField = ({
         {/* Ants */}
         {ants.map((ant) => {
           const colony = colonies.find(c => c.id === ant.colony_id);
+          // Use ant type color hue if available, otherwise fall back to brown
+          const antColor = ant.state === 'carrying_food' 
+            ? `hsl(${ant.ant_type.color_hue}, 70%, 60%)` 
+            : `hsl(${ant.ant_type.color_hue}, 60%, 40%)`;
+          
           return (
             <circle
               key={ant.id}
               cx={Math.min(Number(ant.position_x), fieldWidth)}
               cy={Math.min(Number(ant.position_y), fieldHeight)}
               r={2}
-              fill={ant.state === 'carrying_food' ? '#8b5cf6' : '#8b4513'}
+              fill={antColor}
               className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
             >
-              <title>{`Ant | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
+              <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
             </circle>
           );
         })}
@@ -444,12 +470,27 @@ const SimulationPage = () => {
           </div>
 
           <div className="bg-white border rounded-lg p-4">
-            <h4 className="font-semibold mb-2">Food Sources</h4>
-            <div className="space-y-2 text-sm">
-              {data.foodSources.map((food) => (
-                <div key={food.id} className="flex justify-between">
-                  <span className="capitalize">{food.food_type}:</span>
-                  <span>{Number(food.amount).toFixed(1)}</span>
+            <h4 className="font-semibold mb-2">Ants</h4>
+            <div className="space-y-3 text-sm">
+              {Object.entries(data.ants.reduce((acc, ant) => {
+                const typeName = ant.ant_type.name;
+                if (!acc[typeName]) {
+                  acc[typeName] = {
+                    count: 0,
+                    antType: ant.ant_type
+                  };
+                }
+                acc[typeName].count++;
+                return acc;
+              }, {} as Record<string, { count: number; antType: RenderAnt['ant_type'] }>)).map(([typeName, { count, antType }]) => (
+                <div key={typeName} className="border-l-4 pl-3" style={{ borderColor: `hsl(${antType.color_hue}, 60%, 50%)` }}>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">{typeName}</span>
+                    <span className="text-gray-600">{count} ants</span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {antType.role} • Speed: {Number(antType.base_speed).toFixed(1)} • Strength: {Number(antType.base_strength).toFixed(1)} • Capacity: {Number(antType.carrying_capacity).toFixed(1)}
+                  </div>
                 </div>
               ))}
             </div>
@@ -467,6 +508,17 @@ const SimulationPage = () => {
             </div>
           </div>
 
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Food Sources</h4>
+            <div className="space-y-2 text-sm">
+              {data.foodSources.map((food) => (
+                <div key={food.id} className="flex justify-between">
+                  <span className="capitalize">{food.food_type}:</span>
+                  <span>{Number(food.amount).toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

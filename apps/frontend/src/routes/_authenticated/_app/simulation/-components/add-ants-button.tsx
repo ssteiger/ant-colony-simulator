@@ -6,6 +6,20 @@ import { Button } from '~/lib/components/ui/button'
 import { toast } from 'sonner'
 import { useParams } from '@tanstack/react-router'
 
+/**
+ * Add Ants Button Component
+ * 
+ * Implements realistic ant colony distribution based on real-world research:
+ * - Workers: ~87% (foraging, building, maintenance - the backbone of the colony)
+ * - Soldiers: ~8% (defense, specialized combat tasks)
+ * - Scouts: ~3% (exploration, pathfinding, reconnaissance)
+ * - Nurses: ~2% (brood care, colony health, larval care)
+ * - Queens: ~0.1% (reproduction - typically 1 per colony, but allows for polygynous colonies)
+ * 
+ * This distribution is based on studies of real ant colonies where workers comprise
+ * the vast majority (85-90%), with specialized castes making up smaller percentages.
+ */
+
 // Server function to add ants to the simulation
 const addAntsToSimulation = createServerFn({ method: 'POST' })
   .validator((data: { count: number, simulationId: string }) => data)
@@ -37,44 +51,87 @@ const addAntsToSimulation = createServerFn({ method: 'POST' })
 
       const colony = colonies[0]
 
-      // Get the first ant type
+      // Get all available ant types
       const antTypes = await postgres_db
         .select()
         .from(schema.ant_types)
-        .limit(1)
 
       if (antTypes.length === 0) {
-        throw new Error('No ant type found')
+        throw new Error('No ant types found')
       }
 
-      const antType = antTypes[0]
+      // Realistic ant colony distribution based on research:
+      // Workers: ~85-90% (foraging, building, maintenance)
+      // Soldiers: ~5-10% (defense, specialized tasks)
+      // Scouts: ~3-5% (exploration, pathfinding)
+      // Nurses: ~2-5% (brood care, colony health)
+      // Queens: ~0.1% (reproduction - usually just 1 per colony)
+      
+      // Create distribution map
+      const distributionMap = new Map<string, number>([
+        ['worker', 0.87],    // 87% workers - the backbone of the colony
+        ['soldier', 0.08],   // 8% soldiers - defense and heavy lifting
+        ['scout', 0.03],     // 3% scouts - exploration and pathfinding
+        ['nurse', 0.02],     // 2% nurses - brood care and health
+        ['queen', 0.001]     // 0.1% queens - usually just 1, but allowing for multiple queen colonies
+      ])
 
-      // Generate random ants
+      // Calculate ant counts per type
+      const antCounts: { antType: typeof antTypes[0], count: number }[] = []
+      let remainingAnts = data.count
+
+      for (const [role, percentage] of distributionMap) {
+        const antType = antTypes.find(type => type.role === role)
+        if (antType) {
+          const count = Math.floor(data.count * percentage)
+          if (count > 0) {
+            antCounts.push({ antType, count })
+            remainingAnts -= count
+          }
+        }
+      }
+
+      // Add any remaining ants as workers (most common type)
+      if (remainingAnts > 0) {
+        const workerType = antTypes.find(type => type.role === 'worker')
+        if (workerType) {
+          const existingWorkerEntry = antCounts.find(entry => entry.antType.role === 'worker')
+          if (existingWorkerEntry) {
+            existingWorkerEntry.count += remainingAnts
+          } else {
+            antCounts.push({ antType: workerType, count: remainingAnts })
+          }
+        }
+      }
+
+      // Generate ants based on distribution
       const ants = []
       const worldWidth = simulation.world_width
       const worldHeight = simulation.world_height
 
-      for (let i = 0; i < data.count; i++) {
-        // Generate random position within simulation bounds (convert to integers)
-        const position_x = Math.floor(Math.random() * worldWidth)
-        const position_y = Math.floor(Math.random() * worldHeight)
-        
-        // Random angle (0 to 359 degrees as integer)
-        const angle = Math.floor(Math.random() * 360)
+      for (const { antType, count } of antCounts) {
+        for (let i = 0; i < count; i++) {
+          // Generate random position within simulation bounds (convert to integers)
+          const position_x = Math.floor(Math.random() * worldWidth)
+          const position_y = Math.floor(Math.random() * worldHeight)
+          
+          // Random angle (0 to 359 degrees as integer)
+          const angle = Math.floor(Math.random() * 360)
 
-        ants.push({
-          colony_id: colony.id,
-          ant_type_id: antType.id,
-          position_x: position_x,
-          position_y: position_y,
-          angle: angle,
-          current_speed: 1,
-          health: 100,
-          age_ticks: 0,
-          state: 'wandering' as const,
-          energy: 100,
-          mood: 'neutral' as const,
-        })
+          ants.push({
+            colony_id: colony.id,
+            ant_type_id: antType.id,
+            position_x: position_x,
+            position_y: position_y,
+            angle: angle,
+            current_speed: 1,
+            health: antType.base_health || 100,
+            age_ticks: 0,
+            state: 'wandering' as const,
+            energy: 100,
+            mood: 'neutral' as const,
+          })
+        }
       }
 
       // Insert ants into database
@@ -83,13 +140,20 @@ const addAntsToSimulation = createServerFn({ method: 'POST' })
         .values(ants)
         .returning({ id: schema.ants.id })
 
-      // Note: Colony population will be updated by the database trigger
-      // or we can update it in a separate query later to avoid typing issues
+      // Create summary of ant types added
+      const summary = antCounts
+        .filter(entry => entry.count > 0)
+        .map(entry => `${entry.count} ${entry.antType.name}${entry.count > 1 ? 's' : ''}`)
+        .join(', ')
 
       return {
         success: true,
-        message: `Successfully added ${insertedAnts.length} ants to ${colony.name}`,
-        antsAdded: insertedAnts.length
+        message: `Successfully added ${insertedAnts.length} ants to ${colony.name}: ${summary}`,
+        antsAdded: insertedAnts.length,
+        distribution: antCounts.reduce((acc, entry) => {
+          acc[entry.antType.name] = entry.count
+          return acc
+        }, {} as Record<string, number>)
       }
     } catch (error) {
       console.error('Error adding ants:', error)
@@ -105,11 +169,17 @@ export function AddAntsButton() {
 
   const addAntsMutation = useMutation({
     mutationFn: (count: number) => addAntsToSimulation({ data: { count, simulationId } }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate and refetch simulation data
       queryClient.invalidateQueries({ queryKey: ['simulation-data'] })
       setIsLoading(false)
-      toast.success('100 ants added')
+      
+      // Show detailed success message with ant type breakdown
+      const distributionText = Object.entries(data.distribution || {})
+        .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+        .join(', ')
+      
+      toast.success(`Added ${data.antsAdded} ants with realistic distribution: ${distributionText}`)
     },
     onError: () => {
       setIsLoading(false)

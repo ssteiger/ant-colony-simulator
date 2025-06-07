@@ -7,6 +7,23 @@ import { Input } from '~/lib/components/ui/input'
 import { Textarea } from '~/lib/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/lib/components/ui/dialog'
 
+/**
+ * Create Simulation Button Component
+ * 
+ * Creates a new ant colony simulation with:
+ * - Customizable world dimensions
+ * - Default colony placed at the center
+ * - Initial food sources scattered around the colony
+ * - Realistic ant distribution based on real-world research:
+ *   - Workers: ~87% (foraging, building, maintenance)
+ *   - Soldiers: ~8% (defense, specialized combat tasks)
+ *   - Scouts: ~3% (exploration, pathfinding, reconnaissance)
+ *   - Nurses: ~2% (brood care, colony health, larval care)
+ *   - Queens: ~0.1% (reproduction - typically 1 per colony)
+ * 
+ * Ants are positioned near the colony center within the colony radius for a realistic start.
+ */
+
 // Server function to create a new simulation
 const createNewSimulation = createServerFn({ method: 'POST' })
   .validator((data: { 
@@ -14,6 +31,7 @@ const createNewSimulation = createServerFn({ method: 'POST' })
     description?: string
     worldWidth: number
     worldHeight: number
+    initialAntCount?: number
   }) => data)
   .handler(async ({ data }) => {
     try {
@@ -34,30 +52,8 @@ const createNewSimulation = createServerFn({ method: 'POST' })
         })
         .returning()
 
-      // Create a default ant type if none exists
-      const existingAntTypes = await postgres_db
-        .select()
-        .from(schema.ant_types)
-        .limit(1)
-
-      if (existingAntTypes.length === 0) {
-        await postgres_db
-          .insert(schema.ant_types)
-          .values({
-            name: 'Worker Ant',
-            base_speed: 1,
-            base_strength: 1,
-            base_health: 100,
-            base_size: 3,
-            lifespan_ticks: 50000,
-            carrying_capacity: 1,
-            role: 'worker',
-            color_hue: 30
-          })
-      }
-
       // Create a default colony in the center
-      await postgres_db
+      const [colony] = await postgres_db
         .insert(schema.colonies)
         .values({
           simulation_id: simulation.id,
@@ -72,6 +68,7 @@ const createNewSimulation = createServerFn({ method: 'POST' })
           aggression_level: 1,
           is_active: true
         })
+        .returning()
 
       // Create some initial food sources
       for (let i = 0; i < 5; i++) {
@@ -97,6 +94,113 @@ const createNewSimulation = createServerFn({ method: 'POST' })
           })
       }
 
+      // Create initial ants with realistic distribution
+      const initialAntCount = data.initialAntCount || 50 // Default to 50 ants
+      
+      if (initialAntCount > 0) {
+        // Get all available ant types
+        const antTypes = await postgres_db
+          .select()
+          .from(schema.ant_types)
+
+        if (antTypes.length > 0) {
+          // Realistic ant colony distribution based on research:
+          // Workers: ~87% (foraging, building, maintenance)
+          // Soldiers: ~8% (defense, specialized tasks)
+          // Scouts: ~3% (exploration, pathfinding)
+          // Nurses: ~2% (brood care, colony health)
+          // Queens: ~0.1% (reproduction - usually just 1 per colony)
+          
+          const distributionMap = new Map<string, number>([
+            ['worker', 0.87],    // 87% workers - the backbone of the colony
+            ['soldier', 0.08],   // 8% soldiers - defense and heavy lifting
+            ['scout', 0.03],     // 3% scouts - exploration and pathfinding
+            ['nurse', 0.02],     // 2% nurses - brood care and health
+            ['queen', 0.001]     // 0.1% queens - usually just 1, but allowing for multiple queen colonies
+          ])
+
+          // Calculate ant counts per type
+          const antCounts: { antType: typeof antTypes[0], count: number }[] = []
+          let remainingAnts = initialAntCount
+
+          for (const [role, percentage] of distributionMap) {
+            const antType = antTypes.find(type => type.role === role)
+            if (antType) {
+              const count = Math.floor(initialAntCount * percentage)
+              if (count > 0) {
+                antCounts.push({ antType, count })
+                remainingAnts -= count
+              }
+            }
+          }
+
+          // Add any remaining ants as workers (most common type)
+          if (remainingAnts > 0) {
+            const workerType = antTypes.find(type => type.role === 'worker')
+            if (workerType) {
+              const existingWorkerEntry = antCounts.find(entry => entry.antType.role === 'worker')
+              if (existingWorkerEntry) {
+                existingWorkerEntry.count += remainingAnts
+              } else {
+                antCounts.push({ antType: workerType, count: remainingAnts })
+              }
+            }
+          }
+
+          // Generate ants based on distribution
+          const ants = []
+          const colonyX = colony.center_x
+          const colonyY = colony.center_y
+          const colonyRadius = colony.radius
+
+          for (const { antType, count } of antCounts) {
+            for (let i = 0; i < count; i++) {
+              // Generate position near the colony center (within colony radius)
+              const angle = Math.random() * 2 * Math.PI
+              const distance = Math.random() * colonyRadius
+              const position_x = Math.floor(colonyX + Math.cos(angle) * distance)
+              const position_y = Math.floor(colonyY + Math.sin(angle) * distance)
+              
+              // Random facing angle (0 to 359 degrees as integer)
+              const facingAngle = Math.floor(Math.random() * 360)
+
+              ants.push({
+                colony_id: colony.id,
+                ant_type_id: antType.id,
+                position_x: Math.max(0, Math.min(position_x, data.worldWidth - 1)),
+                position_y: Math.max(0, Math.min(position_y, data.worldHeight - 1)),
+                angle: facingAngle,
+                current_speed: 1,
+                health: antType.base_health || 100,
+                age_ticks: 0,
+                state: 'wandering' as const,
+                energy: 100,
+                mood: 'neutral' as const,
+              })
+            }
+          }
+
+          // Insert ants into database
+          if (ants.length > 0) {
+            await postgres_db
+              .insert(schema.ants)
+              .values(ants)
+          }
+
+          // Create summary of ant types created
+          const antSummary = antCounts
+            .filter(entry => entry.count > 0)
+            .map(entry => `${entry.count} ${entry.antType.name}${entry.count > 1 ? 's' : ''}`)
+            .join(', ')
+
+          return {
+            success: true,
+            message: `Successfully created simulation "${data.name}" with colony, food sources, and ${ants.length} ants (${antSummary})`,
+            antsCreated: ants.length
+          }
+        }
+      }
+
       return {
         success: true,
         message: `Successfully created simulation "${data.name}" with initial colony and food sources`
@@ -113,7 +217,8 @@ export function CreateSimulationButton() {
     name: 'My Ant Colony',
     description: 'A new ant colony simulation with worker ants exploring for food sources.',
     worldWidth: 800,
-    worldHeight: 600
+    worldHeight: 600,
+    initialAntCount: 50
   })
   const queryClient = useQueryClient()
 
@@ -122,7 +227,7 @@ export function CreateSimulationButton() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['simulation-data'] })
       setIsOpen(false)
-      setFormData({ name: 'My Ant Colony', description: 'A new ant colony simulation with worker ants exploring for food sources.', worldWidth: 800, worldHeight: 600 })
+      setFormData({ name: 'My Ant Colony', description: 'A new ant colony simulation with worker ants exploring for food sources.', worldWidth: 800, worldHeight: 600, initialAntCount: 50 })
       queryClient.invalidateQueries()
     }
   })
@@ -184,6 +289,24 @@ export function CreateSimulationButton() {
                 placeholder="Optional description..."
                 rows={3}
               />
+            </div>
+
+            <div>
+              <label htmlFor="initialAntCount" className="block text-sm font-medium text-gray-700 mb-1">
+                Initial Ant Count
+              </label>
+              <Input
+                id="initialAntCount"
+                type="number"
+                value={formData.initialAntCount}
+                onChange={(e) => handleInputChange('initialAntCount', Number.parseInt(e.target.value) || 0)}
+                min={0}
+                max={500}
+                placeholder="50"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Number of ants to start with (realistic distribution: ~87% workers, 8% soldiers, 3% scouts, 2% nurses, 0.1% queens)
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
