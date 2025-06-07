@@ -4,20 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
 import { Button } from '~/lib/components/ui/button'
 import { CreateSimulationButton } from '../-components/create-simulation-button'
-
-interface Simulation {
-  id: string
-  name: string
-  description: string | null
-  world_width: number
-  world_height: number
-  current_tick: number | null
-  is_active: boolean | null
-  season: string | null
-  weather_type: string | null
-  created_at: string
-  updated_at: string
-}
+import type { Simulation } from '~/types/drizzle'
 
 const getAllSimulations = createServerFn({ method: 'GET' })
   .handler(async () => {

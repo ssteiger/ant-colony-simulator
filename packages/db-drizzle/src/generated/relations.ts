@@ -1,31 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { simulations, food_sources, colonies, ants, ant_types, pheromone_trails, obstacles, predators, simulation_events, ant_interactions, ant_genetics, colony_upgrades, simulation_stats, plants, decomposers, species, diseases, infections, colony_relations, colony_culture, espionage_missions, migration_patterns, water_bodies, fire_zones, soil_zones, climate_zones, weather_systems } from "./schema";
-
-export const food_sourcesRelations = relations(food_sources, ({one, many}) => ({
-	simulation: one(simulations, {
-		fields: [food_sources.simulation_id],
-		references: [simulations.id]
-	}),
-	pheromone_trails: many(pheromone_trails),
-}));
-
-export const simulationsRelations = relations(simulations, ({many}) => ({
-	food_sources: many(food_sources),
-	colonies: many(colonies),
-	obstacles: many(obstacles),
-	predators: many(predators),
-	simulation_events: many(simulation_events),
-	simulation_stats: many(simulation_stats),
-	plants: many(plants),
-	decomposers: many(decomposers),
-	species: many(species),
-	diseases: many(diseases),
-	water_bodies: many(water_bodies),
-	fire_zones: many(fire_zones),
-	soil_zones: many(soil_zones),
-	climate_zones: many(climate_zones),
-	weather_systems: many(weather_systems),
-}));
+import { simulations, colonies, ants, ant_types, food_sources, pheromone_trails, obstacles, predators, simulation_events, ant_interactions, ant_genetics, colony_upgrades, simulation_stats, plants, decomposers, species, diseases, infections, colony_relations, colony_culture, espionage_missions, migration_patterns, water_bodies, fire_zones, soil_zones, climate_zones, weather_systems } from "./schema";
 
 export const coloniesRelations = relations(colonies, ({one, many}) => ({
 	simulation: one(simulations, {
@@ -50,6 +24,24 @@ export const coloniesRelations = relations(colonies, ({one, many}) => ({
 		relationName: "espionage_missions_target_colony_id_colonies_id"
 	}),
 	migration_patterns: many(migration_patterns),
+}));
+
+export const simulationsRelations = relations(simulations, ({many}) => ({
+	colonies: many(colonies),
+	food_sources: many(food_sources),
+	obstacles: many(obstacles),
+	predators: many(predators),
+	simulation_events: many(simulation_events),
+	simulation_stats: many(simulation_stats),
+	plants: many(plants),
+	decomposers: many(decomposers),
+	species: many(species),
+	diseases: many(diseases),
+	water_bodies: many(water_bodies),
+	fire_zones: many(fire_zones),
+	soil_zones: many(soil_zones),
+	climate_zones: many(climate_zones),
+	weather_systems: many(weather_systems),
 }));
 
 export const antsRelations = relations(ants, ({one, many}) => ({
@@ -83,6 +75,14 @@ export const antsRelations = relations(ants, ({one, many}) => ({
 
 export const ant_typesRelations = relations(ant_types, ({many}) => ({
 	ants: many(ants),
+}));
+
+export const food_sourcesRelations = relations(food_sources, ({one, many}) => ({
+	simulation: one(simulations, {
+		fields: [food_sources.simulation_id],
+		references: [simulations.id]
+	}),
+	pheromone_trails: many(pheromone_trails),
 }));
 
 export const pheromone_trailsRelations = relations(pheromone_trails, ({one}) => ({

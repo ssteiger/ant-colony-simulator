@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '../types/ant-colony'
+import type { Database } from '../types/supabase'
+import type { Simulation, SimulationStats } from '../types/drizzle'
 
 export interface SimulationEngineOptions {
   tickInterval: number // milliseconds between ticks

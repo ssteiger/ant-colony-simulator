@@ -55,20 +55,20 @@ const addAntsToSimulation = createServerFn({ method: 'POST' })
       const worldHeight = simulation.world_height
 
       for (let i = 0; i < data.count; i++) {
-        // Generate random position within simulation bounds
-        const position_x = Math.random() * worldWidth
-        const position_y = Math.random() * worldHeight
+        // Generate random position within simulation bounds (convert to integers)
+        const position_x = Math.floor(Math.random() * worldWidth)
+        const position_y = Math.floor(Math.random() * worldHeight)
         
-        // Random angle (0 to 2π radians)
-        const angle = Math.random() * 2 * Math.PI
+        // Random angle (0 to 359 degrees as integer)
+        const angle = Math.floor(Math.random() * 360)
 
         ants.push({
           colony_id: colony.id,
           ant_type_id: antType.id,
-          position_x: position_x.toString(),
-          position_y: position_y.toString(),
-          angle: angle.toString(),
-          current_speed: '1.0',
+          position_x: position_x,
+          position_y: position_y,
+          angle: angle,
+          current_speed: 1,
           health: 100,
           age_ticks: 0,
           state: 'wandering' as const,

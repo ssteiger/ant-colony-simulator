@@ -31,7 +31,7 @@ const createNewSimulation = createServerFn({ method: 'POST' })
           season: 'spring',
           time_of_day: 720,
           weather_type: 'clear',
-          weather_intensity: '0.0'
+          weather_intensity: 0
         })
         .returning()
 
@@ -46,12 +46,12 @@ const createNewSimulation = createServerFn({ method: 'POST' })
           .insert(schema.ant_types)
           .values({
             name: 'Worker Ant',
-            base_speed: '1.0',
-            base_strength: '1.0',
+            base_speed: 1,
+            base_strength: 1,
             base_health: 100,
-            base_size: '3.0',
+            base_size: 3,
             lifespan_ticks: 50000,
-            carrying_capacity: '1.0',
+            carrying_capacity: 1,
             role: 'worker',
             color_hue: 30
           })
@@ -63,14 +63,14 @@ const createNewSimulation = createServerFn({ method: 'POST' })
         .values({
           simulation_id: simulation.id,
           name: 'Main Colony',
-          center_x: (data.worldWidth / 2).toString(),
-          center_y: (data.worldHeight / 2).toString(),
-          radius: '30.0',
+          center_x: Math.floor(data.worldWidth / 2),
+          center_y: Math.floor(data.worldHeight / 2),
+          radius: 30,
           population: 0,
           color_hue: 30,
           nest_level: 1,
-          territory_radius: '100.0',
-          aggression_level: '0.5',
+          territory_radius: 100,
+          aggression_level: 1,
           is_active: true
         })
 
@@ -86,14 +86,14 @@ const createNewSimulation = createServerFn({ method: 'POST' })
           .values({
             simulation_id: simulation.id,
             food_type: ['seeds', 'sugar', 'protein'][Math.floor(Math.random() * 3)],
-            position_x: Math.max(20, Math.min(x, data.worldWidth - 20)).toString(),
-            position_y: Math.max(20, Math.min(y, data.worldHeight - 20)).toString(),
-            amount: (50 + Math.random() * 100).toString(),
-            max_amount: '150',
-            regeneration_rate: '0.1',
-            discovery_difficulty: '0.5',
-            nutritional_value: '1.0',
-            spoilage_rate: '0.001',
+            position_x: Math.floor(Math.max(20, Math.min(x, data.worldWidth - 20))),
+            position_y: Math.floor(Math.max(20, Math.min(y, data.worldHeight - 20))),
+            amount: Math.floor(50 + Math.random() * 100),
+            max_amount: 150,
+            regeneration_rate: 0,
+            discovery_difficulty: 1,
+            nutritional_value: 1,
+            spoilage_rate: 0,
             is_renewable: true
           })
       }
@@ -124,6 +124,7 @@ export function CreateSimulationButton() {
       queryClient.invalidateQueries({ queryKey: ['simulation-data'] })
       setIsOpen(false)
       setFormData({ name: '', description: '', worldWidth: 800, worldHeight: 600 })
+      queryClient.invalidateQueries()
     }
   })
 

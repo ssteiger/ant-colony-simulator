@@ -5,42 +5,7 @@ import { postgres_db, schema, eq } from '@ant-colony-simulator/db-drizzle'
 import { AddAntsButton } from './-components/add-ants-button'
 import { CreateSimulationButton } from '../-components/create-simulation-button'
 import { Button } from '~/lib/components/ui/button'
-
-interface Simulation {
-  id: string
-  name: string
-  world_width: number
-  world_height: number
-  current_tick: number | null
-  is_active: boolean | null
-  season?: string | null
-  weather_type?: string | null
-}
-
-interface Ant {
-  id: string
-  position_x: string
-  position_y: string
-  colony_id: string
-  state: string
-}
-
-interface Colony {
-  id: string
-  name: string
-  center_x: string
-  center_y: string
-  radius: string
-  color_hue: number
-}
-
-interface FoodSource {
-  id: string
-  position_x: string
-  position_y: string
-  food_type: string
-  amount: string
-}
+import type { Simulation, Ant, Colony, FoodSource } from '~/types/drizzle'
 
 const getSimulationData = createServerFn({ method: 'GET' })
   .validator((data: { simulationId: string }) => data)

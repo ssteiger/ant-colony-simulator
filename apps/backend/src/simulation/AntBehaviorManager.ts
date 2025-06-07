@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Ant, FoodSource } from '../types/ant-colony'
+import type { Ant, FoodSource } from '../types/drizzle'
+import type { Database } from '../types/supabase'
 
 export class AntBehaviorManager {
   private supabase: SupabaseClient<Database>
@@ -67,7 +68,7 @@ export class AntBehaviorManager {
 
   private async processAntBehavior(ant: Ant, tick: number): Promise<string> {
     try {
-      console.log(`🐜 Processing ant ${ant.id}: state=${ant.state}, energy=${ant.energy}, position=(${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)})`)
+      console.log(`🐜 Processing ant ${ant.id}: state=${ant.state}, energy=${ant.energy}, position=(${ant.position_x}, ${ant.position_y})`)
       
       // Age the ant
       const newAge = ant.age_ticks + 1
@@ -200,18 +201,21 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(randomAngle) * moveDistance
     const newY = ant.position_y + Math.sin(randomAngle) * moveDistance
 
-    // Use dynamic world bounds from simulation
-    const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
-    const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
+    // Use dynamic world bounds from simulation and round to integers
+    const boundedX = Math.round(Math.max(0, Math.min(simulation.world_width, newX)))
+    const boundedY = Math.round(Math.max(0, Math.min(simulation.world_height, newY)))
 
-    console.log(`🐜 Moving ant ${ant.id} randomly from (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) to (${boundedX.toFixed(1)}, ${boundedY.toFixed(1)}) within bounds (${simulation.world_width}x${simulation.world_height})`)
+    // Convert angle from radians to degrees and round to integer
+    const angleDegrees = Math.round((randomAngle * 180) / Math.PI)
+
+    console.log(`🐜 Moving ant ${ant.id} randomly from (${ant.position_x}, ${ant.position_y}) to (${boundedX}, ${boundedY}) within bounds (${simulation.world_width}x${simulation.world_height})`)
 
     await this.supabase
       .from('ants')
       .update({
         position_x: boundedX,
         position_y: boundedY,
-        angle: randomAngle,
+        angle: angleDegrees,
         last_updated: new Date().toISOString()
       })
       .eq('id', ant.id)
@@ -229,14 +233,21 @@ export class AntBehaviorManager {
       const newX = ant.position_x + Math.cos(angle) * ant.current_speed
       const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
-      console.log(`🐜 Moving ant ${ant.id} towards food ${nearbyFood.food_type} from (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) to (${newX.toFixed(1)}, ${newY.toFixed(1)})`)
+      // Round positions to integers
+      const roundedX = Math.round(newX)
+      const roundedY = Math.round(newY)
+
+      // Convert angle from radians to degrees and round to integer
+      const angleDegrees = Math.round((angle * 180) / Math.PI)
+
+      console.log(`🐜 Moving ant ${ant.id} towards food ${nearbyFood.food_type} from (${ant.position_x}, ${ant.position_y}) to (${roundedX}, ${roundedY})`)
 
       await this.supabase
         .from('ants')
         .update({
-          position_x: newX,
-          position_y: newY,
-          angle,
+          position_x: roundedX,
+          position_y: roundedY,
+          angle: angleDegrees,
           state: 'seeking_food',
           target_x: nearbyFood.position_x,
           target_y: nearbyFood.position_y,
@@ -263,14 +274,21 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(angle) * ant.current_speed
     const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
-    console.log(`🐜 Moving ant ${ant.id} towards target from (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) to (${newX.toFixed(1)}, ${newY.toFixed(1)})`)
+    // Round positions to integers
+    const roundedX = Math.round(newX)
+    const roundedY = Math.round(newY)
+
+    // Convert angle from radians to degrees and round to integer
+    const angleDegrees = Math.round((angle * 180) / Math.PI)
+
+    console.log(`🐜 Moving ant ${ant.id} towards target from (${ant.position_x}, ${ant.position_y}) to (${roundedX}, ${roundedY})`)
 
     await this.supabase
       .from('ants')
       .update({
-        position_x: newX,
-        position_y: newY,
-        angle
+        position_x: roundedX,
+        position_y: roundedY,
+        angle: angleDegrees
       })
       .eq('id', ant.id)
   }
@@ -292,9 +310,13 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(angle) * ant.current_speed
     const newY = ant.position_y + Math.sin(angle) * ant.current_speed
 
+    // Round positions to integers
+    const roundedX = Math.round(newX)
+    const roundedY = Math.round(newY)
+
     // Check if ant reached colony
     const distance = Math.sqrt(
-      (colony.center_x - newX) ** 2 + (colony.center_y - newY) ** 2
+      (colony.center_x - roundedX) ** 2 + (colony.center_y - roundedY) ** 2
     )
 
     console.log(`🐜 Moving ant ${ant.id} towards colony '${colony.name}' - distance: ${distance.toFixed(1)}`)
@@ -304,12 +326,15 @@ export class AntBehaviorManager {
       console.log(`🐜 Ant ${ant.id} reached colony '${colony.name}', depositing food`)
       await this.depositFood(ant)
     } else {
+      // Convert angle from radians to degrees and round to integer
+      const angleDegrees = Math.round((angle * 180) / Math.PI)
+
       await this.supabase
         .from('ants')
         .update({
-          position_x: newX,
-          position_y: newY,
-          angle
+          position_x: roundedX,
+          position_y: roundedY,
+          angle: angleDegrees
         })
         .eq('id', ant.id)
     }

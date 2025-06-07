@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '../types/ant-colony'
+import type { Database } from '../types/supabase'
+import type { FoodSource } from '../types/drizzle'
 
 export class EnvironmentManager {
   private supabase: SupabaseClient<Database>
@@ -147,7 +148,7 @@ export class EnvironmentManager {
 
           console.log(`🌍 EnvironmentManager: ✅ Spawned ${randomFoodType} food source at (${x.toFixed(1)}, ${y.toFixed(1)}) with ${amount.toFixed(1)} units`)
         } catch (error) {
-          console.error(`🌍 EnvironmentManager: ❌ Failed to spawn food source:`, error)
+          console.error('🌍 EnvironmentManager: ❌ Failed to spawn food source:', error)
         }
       }
     } else {

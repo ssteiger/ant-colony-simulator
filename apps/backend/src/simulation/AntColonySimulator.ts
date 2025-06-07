@@ -1,18 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '../types/ant-colony'
+
+import type { Database } from '../types/supabase'
+import type { SimulationStats } from '../types/drizzle'
+
 import { SimulationEngine } from './SimulationEngine'
 import { ColonyManager } from './ColonyManager'
 import { AntBehaviorManager } from './AntBehaviorManager'
 import { EnvironmentManager } from './EnvironmentManager'
 import { PheromoneManager } from './PheromoneManager'
-
-export interface SimulationStats {
-  totalAnts: number
-  activeColonies: number
-  totalFoodCollected: number
-  activePheromoneTrails: number
-  currentTick: number
-}
 
 export class AntColonySimulator {
   private supabase: SupabaseClient<Database>

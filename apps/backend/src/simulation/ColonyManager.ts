@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Colony } from '../types/ant-colony'
+import type { Database } from '../types/supabase'
+import type { Colony } from '../types/drizzle'
 
 export class ColonyManager {
   private supabase: SupabaseClient<Database>

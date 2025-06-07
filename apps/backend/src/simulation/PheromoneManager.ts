@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ant, Database } from '../types/ant-colony'
+import type { Database } from '../types/supabase'
+import type { Ant, PheromoneTrail } from '../types/drizzle'
 
 export class PheromoneManager {
   private supabase: SupabaseClient<Database>
@@ -187,7 +188,7 @@ export class PheromoneManager {
     }
   }
 
-  async getPheromoneInfluence(x: number, y: number, colonyId: string, radius: number = 20): Promise<{ direction: number; strength: number }> {
+  async getPheromoneInfluence(x: number, y: number, colonyId: string, radius = 20): Promise<{ direction: number; strength: number }> {
     console.log(`🔬 PheromoneManager: Getting pheromone influence at (${x.toFixed(1)}, ${y.toFixed(1)}) for colony ${colonyId}`)
     
     // Get all pheromone trails within radius
