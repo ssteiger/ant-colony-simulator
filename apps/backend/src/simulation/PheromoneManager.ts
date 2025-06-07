@@ -29,7 +29,7 @@ export class PheromoneManager {
     const cleanedCount = await this.cleanupWeakTrails()
 
     // Create new pheromone trails from ants carrying food
-    if (tick % 5 === 0) { // Create trails every 5 ticks
+    if (tick % 2 === 0) { // Create trails every 2 ticks
       console.log('🔬 PheromoneManager: Creating new pheromone trails...')
       const newTrailsCount = await this.createPheromoneTrails()
       console.log(`🔬 PheromoneManager: Created ${newTrailsCount} new pheromone trails`)

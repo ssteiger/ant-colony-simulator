@@ -181,6 +181,18 @@ export class AntBehaviorManager {
   }
 
   private async moveAntRandomly(ant: Ant): Promise<void> {
+    // Fetch world bounds from simulation
+    const { data: simulation } = await this.supabase
+      .from('simulations')
+      .select('world_width, world_height')
+      .eq('id', this.simulationId)
+      .single()
+
+    if (!simulation) {
+      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      return
+    }
+
     // Generate random movement
     const moveDistance = ant.current_speed
     const randomAngle = Math.random() * 2 * Math.PI
@@ -188,11 +200,11 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(randomAngle) * moveDistance
     const newY = ant.position_y + Math.sin(randomAngle) * moveDistance
 
-    // Simple boundary checking (keep ants in world bounds)
-    const boundedX = Math.max(0, Math.min(1200, newX))
-    const boundedY = Math.max(0, Math.min(800, newY))
+    // Use dynamic world bounds from simulation
+    const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
+    const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
 
-    console.log(`🐜 Moving ant ${ant.id} randomly from (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) to (${boundedX.toFixed(1)}, ${boundedY.toFixed(1)})`)
+    console.log(`🐜 Moving ant ${ant.id} randomly from (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) to (${boundedX.toFixed(1)}, ${boundedY.toFixed(1)}) within bounds (${simulation.world_width}x${simulation.world_height})`)
 
     await this.supabase
       .from('ants')

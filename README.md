@@ -38,11 +38,20 @@ npm run dev:frontend
 # open web app at http://127.0.0.1:3000
 ```
 
-## Generate types
+## Helpers
+
+### Generate types
 
 ```bash
 cd packages/db-drizzle
 npx drizzle-kit generate
+```
+
+### Reset database
+
+```bash
+cd apps/supabase
+npx supabase db reset
 ```
 
 ## Prep for first time setup

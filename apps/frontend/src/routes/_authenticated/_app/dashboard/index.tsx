@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
 import { Button } from '~/lib/components/ui/button'
+import { CreateSimulationButton } from '../-components/create-simulation-button'
 
 interface Simulation {
   id: string
@@ -152,15 +153,10 @@ function RouteComponent() {
           <Button
             type="button"
             onClick={() => refetch()}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
           >
             Refresh
           </Button>
-          <button 
-            type="button"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-            New Simulation
-          </button>
+          <CreateSimulationButton />
         </div>
       </div>
 
@@ -211,11 +207,7 @@ function RouteComponent() {
               Get started by creating your first ant colony simulation.
             </p>
             <div className="mt-6">
-              <button 
-                type="button"
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                Create Simulation
-              </button>
+            <CreateSimulationButton />
             </div>
           </div>
         </div>

@@ -44,9 +44,9 @@ export class AntColonySimulator {
     console.log('🎮 AntColonySimulator: Starting simulation process...')
 
     try {
-      // Get or create an active simulation
-      console.log('🎮 AntColonySimulator: Getting or creating active simulation...')
-      const simulation = await this.getOrCreateActiveSimulation()
+      // Get an active simulation
+      console.log('🎮 AntColonySimulator: Getting active simulation...')
+      const simulation = await this.getActiveSimulation()
       this.currentSimulationId = simulation.id
 
       console.log(`🎮 AntColonySimulator: Starting simulation: ${simulation.name} (ID: ${simulation.id})`)
@@ -137,7 +137,7 @@ export class AntColonySimulator {
 
     // Filter ants for this simulation
     const simulationAnts = antsResult.data?.filter(ant => 
-      (ant.colonies as { simulation_id: string })?.simulation_id === this.currentSimulationId
+      (ant.colonies as unknown as { simulation_id: string })?.simulation_id === this.currentSimulationId
     ) || []
 
     const totalFoodCollected = coloniesResult.data?.reduce((total, colony) => {
@@ -157,45 +157,23 @@ export class AntColonySimulator {
     return stats
   }
 
-  private async getOrCreateActiveSimulation() {
+  private async getActiveSimulation() {
     console.log('🎮 AntColonySimulator: Looking for existing active simulation...')
     
-    // First, try to get an active simulation
-    const { data: existingSimulation } = await this.supabase
+    // Try to get an active simulation
+    const { data: existingSimulation, error } = await this.supabase
       .from('simulations')
       .select('*')
       .eq('is_active', true)
       .single()
 
-    if (existingSimulation) {
-      console.log(`🎮 AntColonySimulator: Found existing simulation: ${existingSimulation.name} (ID: ${existingSimulation.id})`)
-      return existingSimulation
+    if (error || !existingSimulation) {
+      console.error('🎮 AntColonySimulator: No active simulation found')
+      throw new Error('No active simulation found. Please create a simulation first.')
     }
 
-    console.log('🎮 AntColonySimulator: No active simulation found, creating new one...')
-
-    // Create a new simulation if none exists
-    const { data: newSimulation, error } = await this.supabase
-      .from('simulations')
-      .insert({
-        name: 'Ant Colony Simulation',
-        description: 'A complex ant colony ecosystem simulation',
-        world_width: 1200,
-        world_height: 800,
-        is_active: true,
-        simulation_speed: 1.0,
-        current_tick: 0
-      })
-      .select()
-      .single()
-
-    if (error || !newSimulation) {
-      console.error('🎮 AntColonySimulator: Failed to create simulation:', error?.message)
-      throw new Error(`Failed to create simulation: ${error?.message}`)
-    }
-
-    console.log(`🎮 AntColonySimulator: ✅ Created new simulation: ${newSimulation.name} (ID: ${newSimulation.id})`)
-    return newSimulation
+    console.log(`🎮 AntColonySimulator: Found existing simulation: ${existingSimulation.name} (ID: ${existingSimulation.id})`)
+    return existingSimulation
   }
 
   private async handleTick(tick: number): Promise<void> {
@@ -213,25 +191,25 @@ export class AntColonySimulator {
       }
 
       // Process ant behaviors
-      console.log(`🎮 AntColonySimulator: Processing ant behaviors...`)
+      console.log('🎮 AntColonySimulator: Processing ant behaviors...')
       const antStartTime = Date.now()
       await this.antBehaviorManager.processTick(tick)
       console.log(`🎮 AntColonySimulator: ✓ Ant behaviors processed (${Date.now() - antStartTime}ms)`)
 
       // Update pheromone trails
-      console.log(`🎮 AntColonySimulator: Processing pheromone trails...`)
+      console.log('🎮 AntColonySimulator: Processing pheromone trails...')
       const pheromoneStartTime = Date.now()
       await this.pheromoneManager.processTick(tick)
       console.log(`🎮 AntColonySimulator: ✓ Pheromone trails processed (${Date.now() - pheromoneStartTime}ms)`)
 
       // Process environment changes
-      console.log(`🎮 AntColonySimulator: Processing environment...`)
+      console.log('🎮 AntColonySimulator: Processing environment...')
       const envStartTime = Date.now()
       await this.environmentManager.processTick(tick)
       console.log(`🎮 AntColonySimulator: ✓ Environment processed (${Date.now() - envStartTime}ms)`)
 
       // Update colony states
-      console.log(`🎮 AntColonySimulator: Processing colonies...`)
+      console.log('🎮 AntColonySimulator: Processing colonies...')
       const colonyStartTime = Date.now()
       await this.colonyManager.processTick(tick)
       console.log(`🎮 AntColonySimulator: ✓ Colonies processed (${Date.now() - colonyStartTime}ms)`)

@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema, eq } from '@ant-colony-simulator/db-drizzle'
 import { AddAntsButton } from './-components/add-ants-button'
-import { CreateSimulationButton } from './-components/create-simulation-button'
+import { CreateSimulationButton } from '../-components/create-simulation-button'
 import { Button } from '~/lib/components/ui/button'
 
 interface Simulation {
@@ -46,7 +46,6 @@ const getSimulationData = createServerFn({ method: 'GET' })
   .validator((data: { simulationId: string }) => data)
   .handler(async ({ data, context }) => {
     const { simulationId } = data
-    console.log('data', data)
     console.log('simulationId', simulationId)
     try {
       const simulations = await postgres_db
@@ -58,8 +57,6 @@ const getSimulationData = createServerFn({ method: 'GET' })
       if (simulations.length === 0) {
         return { simulation: null, ants: [], colonies: [], foodSources: [] }
       }
-
-      console.log('simulations', simulations)
 
       const simulation = simulations[0]
 
@@ -177,41 +174,55 @@ const SimulationField = ({
             r={Math.max(3, Math.min(Number(food.amount) / 10, 10))}
             fill="#10b981"
             opacity={0.7}
-          />
+          >
+            <title>{`Food Source: ${food.food_type} | Amount: ${Number(food.amount).toFixed(1)} | Position: (${food.position_x}, ${food.position_y})`}</title>
+          </circle>
         ))}
         
         {/* Colonies */}
-        {colonies.map((colony) => (
-          <g key={colony.id}>
-            {/* Colony territory circle */}
-            <circle
-              cx={Math.min(Number(colony.center_x), fieldWidth)}
-              cy={Math.min(Number(colony.center_y), fieldHeight)}
-              r={Math.min(Number(colony.radius), 50)}
-              fill={`hsl(${colony.color_hue}, 50%, 80%)`}
-              opacity={0.3}
-            />
-            {/* Colony center */}
-            <circle
-              cx={Math.min(Number(colony.center_x), fieldWidth)}
-              cy={Math.min(Number(colony.center_y), fieldHeight)}
-              r={5}
-              fill={`hsl(${colony.color_hue}, 70%, 50%)`}
-            />
-          </g>
-        ))}
+        {colonies.map((colony) => {
+          const colonyAnts = ants.filter(ant => ant.colony_id === colony.id);
+          return (
+            <g key={colony.id}>
+              {/* Colony territory circle */}
+              <circle
+                cx={Math.min(Number(colony.center_x), fieldWidth)}
+                cy={Math.min(Number(colony.center_y), fieldHeight)}
+                r={Math.min(Number(colony.radius), 50)}
+                fill={`hsl(${colony.color_hue}, 50%, 80%)`}
+                opacity={0.3}
+              >
+                <title>{`${colony.name} Territory | Center: (${colony.center_x}, ${colony.center_y}) | Radius: ${colony.radius} | Ants: ${colonyAnts.length}`}</title>
+              </circle>
+              {/* Colony center */}
+              <circle
+                cx={Math.min(Number(colony.center_x), fieldWidth)}
+                cy={Math.min(Number(colony.center_y), fieldHeight)}
+                r={5}
+                fill={`hsl(${colony.color_hue}, 70%, 50%)`}
+              >
+                <title>{`${colony.name} Center | Position: (${colony.center_x}, ${colony.center_y}) | Ants: ${colonyAnts.length}`}</title>
+              </circle>
+            </g>
+          );
+        })}
         
         {/* Ants */}
-        {ants.map((ant) => (
-          <circle
-            key={ant.id}
-            cx={Math.min(Number(ant.position_x), fieldWidth)}
-            cy={Math.min(Number(ant.position_y), fieldHeight)}
-            r={2}
-            fill="#8b4513"
-            className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
-          />
-        ))}
+        {ants.map((ant) => {
+          const colony = colonies.find(c => c.id === ant.colony_id);
+          return (
+            <circle
+              key={ant.id}
+              cx={Math.min(Number(ant.position_x), fieldWidth)}
+              cy={Math.min(Number(ant.position_y), fieldHeight)}
+              r={2}
+              fill="#8b4513"
+              className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
+            >
+              <title>{`Ant | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
+            </circle>
+          );
+        })}
       </svg>
     </div>
   )
@@ -259,6 +270,7 @@ const SimulationPage = () => {
           <Button 
             onClick={() => refetch()} 
             variant="outline"
+            size="sm"
           >
             Refresh
           </Button>
@@ -272,20 +284,7 @@ const SimulationPage = () => {
           White grid shows coordinates. Brown dots are ants, colored circles are colonies, green circles are food sources.
         </p>
       </div>
-      
-      {isLoading ? (
-        <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
-          <p className="text-gray-500">Loading simulation...</p>
-        </div>
-      ) : (
-        <SimulationField 
-          simulation={data?.simulation || null}
-          ants={data?.ants || []}
-          colonies={data?.colonies || []}
-          foodSources={data?.foodSources || []}
-        />
-      )}
-      
+
       {hasSimulation && data?.simulation && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="bg-gray-50 p-3 rounded">
@@ -308,6 +307,21 @@ const SimulationPage = () => {
           </div>
         </div>
       )}
+      
+      {isLoading ? (
+        <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+          <p className="text-gray-500">Loading simulation...</p>
+        </div>
+      ) : (
+        <SimulationField 
+          simulation={data?.simulation || null}
+          ants={data?.ants || []}
+          colonies={data?.colonies || []}
+          foodSources={data?.foodSources || []}
+        />
+      )}
+      
+
 
       {hasSimulation && data && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

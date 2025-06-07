@@ -1,18 +1,22 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createServerFn } from '@tanstack/react-start'
-import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
+import { eq, postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
 import { Button } from '~/lib/components/ui/button'
+import { toast } from 'sonner'
+import { useParams } from '@tanstack/react-router'
 
 // Server function to add ants to the simulation
 const addAntsToSimulation = createServerFn({ method: 'POST' })
-  .validator((data: { count: number }) => data)
+  .validator((data: { count: number, simulationId: string }) => data)
   .handler(async ({ data }) => {
     try {
+      const { simulationId } = data
       // Get the first active simulation
       const simulations = await postgres_db
         .select()
         .from(schema.simulations)
+        .where(eq(schema.simulations.id, simulationId))
         .limit(1)
 
       if (simulations.length === 0) {
@@ -96,16 +100,20 @@ const addAntsToSimulation = createServerFn({ method: 'POST' })
 export function AddAntsButton() {
   const [isLoading, setIsLoading] = useState(false)
   const queryClient = useQueryClient()
+  const params = useParams({ from: '/_authenticated/_app/simulation/$id' })
+  const simulationId = params.id
 
   const addAntsMutation = useMutation({
-    mutationFn: (count: number) => addAntsToSimulation({ data: { count } }),
+    mutationFn: (count: number) => addAntsToSimulation({ data: { count, simulationId } }),
     onSuccess: () => {
       // Invalidate and refetch simulation data
       queryClient.invalidateQueries({ queryKey: ['simulation-data'] })
       setIsLoading(false)
+      toast.success('100 ants added')
     },
     onError: () => {
       setIsLoading(false)
+      toast.error('Failed to add ants')
     }
   })
 
@@ -121,6 +129,7 @@ export function AddAntsButton() {
   return (
     <Button
       variant="outline"
+      size="sm"
       onClick={handleAddAnts}
       disabled={isLoading || addAntsMutation.isPending}
     >
