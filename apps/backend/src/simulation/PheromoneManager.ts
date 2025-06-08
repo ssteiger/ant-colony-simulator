@@ -55,11 +55,11 @@ export class PheromoneManager {
 
     console.log(`🔬 PheromoneManager: Decaying ${trails.length} pheromone trails`)
     
-    // Prepare bulk updates
+    // Prepare bulk updates - convert decay_rate back to decimal for calculation
     const updates = trails
       .map(trail => ({
         ...trail,
-        strength: Math.max(0, trail.strength - trail.decay_rate)
+        strength: Math.max(0, trail.strength - (trail.decay_rate / 10)) // Convert decay_rate back to decimal scale
       }))
       .filter(trail => trail.strength > 0) // Only update trails that still have strength
 
@@ -82,16 +82,11 @@ export class PheromoneManager {
   private async cleanupWeakTrails(): Promise<number> {
     console.log('🔬 PheromoneManager: Cleaning up weak and expired trails...')
     
-    // Count trails before cleanup
-    const { data: beforeCount } = await this.supabase
-      .from('pheromone_trails')
-      .select('id', { count: 'exact' })
-
-    // Remove trails with very low strength
+    // Remove trails with very low strength (less than 1 in integer scale, which is 0.01 in decimal)
     const { count: weakCount } = await this.supabase
       .from('pheromone_trails')
       .delete({ count: 'exact' })
-      .lt('strength', 0.01)
+      .lt('strength', 1)
 
     // Remove expired trails
     const now = new Date().toISOString()
@@ -153,19 +148,19 @@ export class PheromoneManager {
         .lte('position_x', ant.position_x + 5)
         .gte('position_y', ant.position_y - 5)
         .lte('position_y', ant.position_y + 5)
-        .gt('strength', 0.5)
+        .gt('strength', 50) // Adjusted for integer scale (0.5 * 100)
         .limit(1)
         .single()
 
       // If there's already a strong trail nearby, strengthen it instead of creating new one
       if (existingTrail) {
-        const newStrength = Math.min(1.0, existingTrail.strength + 0.1)
+        const newStrength = Math.min(100, existingTrail.strength + 10) // Adjusted for integer scale
         await this.supabase
           .from('pheromone_trails')
           .update({ strength: newStrength })
           .eq('id', existingTrail.id)
         
-        console.log(`🔬 Strengthened existing trail (${existingTrail.strength.toFixed(2)} → ${newStrength.toFixed(2)}) near ant ${ant.id}`)
+        console.log(`🔬 Strengthened existing trail (${existingTrail.strength} → ${newStrength}) near ant ${ant.id}`)
         return false
       }
 
@@ -173,24 +168,35 @@ export class PheromoneManager {
       const expiresAt = new Date()
       expiresAt.setMinutes(expiresAt.getMinutes() + 30) // Trail lasts 30 minutes
 
-      await this.supabase
+      const { error } = await this.supabase
         .from('pheromone_trails')
         .insert({
           colony_id: ant.colony_id,
           trail_type: 'food',
-          position_x: ant.position_x,
-          position_y: ant.position_y,
-          strength: 0.8,
-          decay_rate: 0.002,
+          position_x: Math.round(ant.position_x),
+          position_y: Math.round(ant.position_y),
+          strength: 80, // Convert 0.8 to integer scale (0.8 * 100)
+          decay_rate: 2, // Convert 0.002 to integer scale (0.002 * 1000)
           expires_at: expiresAt.toISOString(),
           source_ant_id: ant.id
         })
 
+      if (error) {
+        console.error('🔬 PheromoneManager: ❌ Insert error:', error)
+        console.error('🔬 PheromoneManager: Ant data:', {
+          colony_id: ant.colony_id,
+          position_x: ant.position_x,
+          position_y: ant.position_y,
+          id: ant.id
+        })
+        return false
+      }
+
       console.log(`🔬 Created new food trail at (${ant.position_x.toFixed(1)}, ${ant.position_y.toFixed(1)}) for ant ${ant.id}`)
       return true
     } catch (error) {
-      // Ignore errors from trail creation (likely duplicate position)
-      // This is expected when multiple ants are in the same area
+      console.error('🔬 PheromoneManager: ❌ Exception in createFoodTrail:', error)
+      console.error('🔬 PheromoneManager: Ant data:', ant)
       return false
     }
   }
@@ -203,7 +209,7 @@ export class PheromoneManager {
       .from('pheromone_trails')
       .select('*')
       .eq('colony_id', colonyId)
-      .gt('strength', 0.1)
+      .gt('strength', 10) // Adjusted for integer scale (0.1 * 100)
 
     if (!trails || trails.length === 0) {
       console.log('🔬 PheromoneManager: No trails found for influence calculation')
@@ -222,7 +228,8 @@ export class PheromoneManager {
 
       if (distance <= radius && distance > 0) {
         // Calculate influence based on distance and trail strength
-        const influence = trail.strength / (1 + distance * 0.1)
+        // Convert back to decimal scale for calculation
+        const influence = (trail.strength / 100) / (1 + distance * 0.1)
         
         // Direction vector from current position to trail
         const dirX = (trail.position_x - x) / distance
@@ -259,17 +266,22 @@ export class PheromoneManager {
     expiresAt.setMinutes(expiresAt.getMinutes() + 10) // Danger trails last 10 minutes
 
     try {
-      await this.supabase
+      const { error } = await this.supabase
         .from('pheromone_trails')
         .insert({
           colony_id: colonyId,
           trail_type: 'danger',
-          position_x: x,
-          position_y: y,
-          strength: 1.0,
-          decay_rate: 0.01, // Decay faster than food trails
+          position_x: Math.round(x),
+          position_y: Math.round(y),
+          strength: 100, // Convert 1.0 to integer scale (1.0 * 100)
+          decay_rate: 10, // Convert 0.01 to integer scale (0.01 * 1000)
           expires_at: expiresAt.toISOString()
         })
+
+      if (error) {
+        console.error('🔬 PheromoneManager: ❌ Failed to create danger trail:', error)
+        return
+      }
 
       console.log(`🔬 PheromoneManager: ✅ Created danger trail at (${x.toFixed(1)}, ${y.toFixed(1)})`)
     } catch (error) {
@@ -291,19 +303,24 @@ export class PheromoneManager {
         .lte('position_x', x + 3)
         .gte('position_y', y - 3)
         .lte('position_y', y + 3)
-        .gt('strength', 0.3)
+        .gt('strength', 30) // Adjusted for integer scale (0.3 * 100)
         .limit(1)
         .single()
 
       // If there's already a trail nearby, strengthen it instead
       if (existingTrail) {
-        const newStrength = Math.min(1.0, existingTrail.strength + (strength * 0.5))
-        await this.supabase
+        const newStrength = Math.min(100, existingTrail.strength + Math.round(strength * 50)) // Adjusted for integer scale
+        const { error } = await this.supabase
           .from('pheromone_trails')
           .update({ strength: newStrength })
           .eq('id', existingTrail.id)
         
-        console.log(`🔬 Strengthened existing food trail (${existingTrail.strength.toFixed(2)} → ${newStrength.toFixed(2)})`)
+        if (error) {
+          console.error('🔬 PheromoneManager: ❌ Failed to strengthen food trail:', error)
+          return
+        }
+        
+        console.log(`🔬 Strengthened existing food trail (${existingTrail.strength} → ${newStrength})`)
         return
       }
 
@@ -311,20 +328,25 @@ export class PheromoneManager {
       const expiresAt = new Date()
       expiresAt.setMinutes(expiresAt.getMinutes() + 45) // Food discovery trails last longer
 
-      await this.supabase
+      const { error } = await this.supabase
         .from('pheromone_trails')
         .insert({
           colony_id: colonyId,
           trail_type: 'food',
-          position_x: x,
-          position_y: y,
-          strength: Math.min(1.0, strength),
-          decay_rate: 0.001, // Slower decay for discovered food locations
+          position_x: Math.round(x),
+          position_y: Math.round(y),
+          strength: Math.min(100, Math.round(strength * 100)), // Convert to integer scale
+          decay_rate: 1, // Convert 0.001 to integer scale (0.001 * 1000)
           expires_at: expiresAt.toISOString(),
           target_food_id: targetFoodId
         })
 
-      console.log(`🔬 PheromoneManager: ✅ Created food discovery trail at (${x.toFixed(1)}, ${y.toFixed(1)}) with strength ${strength.toFixed(2)}`)
+      if (error) {
+        console.error('🔬 PheromoneManager: ❌ Failed to create food trail:', error)
+        return
+      }
+
+      console.log(`🔬 PheromoneManager: ✅ Created food discovery trail at (${x.toFixed(1)}, ${y.toFixed(1)}) with strength ${Math.round(strength * 100)}`)
     } catch (error) {
       console.error('🔬 PheromoneManager: ❌ Failed to create food trail:', error)
     }
