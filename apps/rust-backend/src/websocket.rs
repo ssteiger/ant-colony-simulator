@@ -12,6 +12,16 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::{error, info, warn};
 use futures_util::{SinkExt, StreamExt};
 
+/// Client message types for requesting simulation data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClientMessage {
+    /// Subscribe to simulation updates
+    Subscribe { simulation_id: i32 },
+    /// Request full state for a simulation
+    RequestFullState { simulation_id: i32 },
+}
+
 /// WebSocket message types for real-time simulation updates
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -53,15 +63,21 @@ pub struct WebSocketManager {
     tx: broadcast::Sender<SimulationMessage>,
     /// Track connected clients count
     connected_clients: Arc<RwLock<u32>>,
+    /// Channel for requesting immediate FullState broadcasts
+    fullstate_request_tx: tokio::sync::mpsc::UnboundedSender<i32>,
+    fullstate_request_rx: Arc<RwLock<Option<tokio::sync::mpsc::UnboundedReceiver<i32>>>>,
 }
 
 impl WebSocketManager {
     pub fn new() -> Self {
         let (tx, _rx) = broadcast::channel(1000); // Buffer up to 1000 messages
+        let (fullstate_request_tx, fullstate_request_rx) = tokio::sync::mpsc::unbounded_channel();
         
         Self {
             tx,
             connected_clients: Arc::new(RwLock::new(0)),
+            fullstate_request_tx,
+            fullstate_request_rx: Arc::new(RwLock::new(Some(fullstate_request_rx))),
         }
     }
 
@@ -100,13 +116,36 @@ impl WebSocketManager {
 
         let (mut sender, mut receiver) = socket.split();
 
+        // Clone the FullState request sender for use in the incoming message handler
+        let fullstate_request_tx = self.fullstate_request_tx.clone();
+
         // Handle incoming messages from client (if needed for control)
         let handle_incoming = tokio::spawn(async move {
             while let Some(msg) = receiver.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
                         info!("Received WebSocket message: {}", text);
-                        // Handle client messages (e.g., subscription to specific simulation)
+                        
+                        // Parse client message
+                        match serde_json::from_str::<ClientMessage>(&text) {
+                            Ok(ClientMessage::Subscribe { simulation_id }) => {
+                                info!("Client subscribed to simulation {}", simulation_id);
+                                // Request immediate FullState for this simulation
+                                if let Err(e) = fullstate_request_tx.send(simulation_id) {
+                                    warn!("Failed to request FullState for simulation {}: {}", simulation_id, e);
+                                }
+                            }
+                            Ok(ClientMessage::RequestFullState { simulation_id }) => {
+                                info!("Client requested FullState for simulation {}", simulation_id);
+                                // Request immediate FullState for this simulation
+                                if let Err(e) = fullstate_request_tx.send(simulation_id) {
+                                    warn!("Failed to request FullState for simulation {}: {}", simulation_id, e);
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse client message '{}': {}", text, e);
+                            }
+                        }
                     }
                     Ok(Message::Close(_)) => {
                         info!("WebSocket client disconnected");
@@ -153,6 +192,17 @@ impl WebSocketManager {
         }
 
         Ok(())
+    }
+
+    /// Get the receiver for FullState requests (should be called once by the simulator)
+    pub async fn take_fullstate_receiver(&self) -> Option<tokio::sync::mpsc::UnboundedReceiver<i32>> {
+        let mut rx_guard = self.fullstate_request_rx.write().await;
+        rx_guard.take()
+    }
+
+    /// Request an immediate FullState broadcast for a simulation
+    pub fn request_fullstate(&self, simulation_id: i32) -> Result<(), tokio::sync::mpsc::error::SendError<i32>> {
+        self.fullstate_request_tx.send(simulation_id)
     }
 }
 

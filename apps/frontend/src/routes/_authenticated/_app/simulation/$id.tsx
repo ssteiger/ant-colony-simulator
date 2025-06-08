@@ -5,7 +5,7 @@ import { DeleteSimulationButton } from './-components/delete-simulation-button'
 import { AddFoodSourcesButton } from './-components/add-food-sources'
 import { ResetAntPositionsButton } from './-components/reset-ant-positions'
 import { Button } from '~/lib/components/ui/button'
-import { useSimulationWebSocket } from '~/hooks/useSimulationWebSocket'
+import { useSimulationWebSocket } from '~/lib/hooks/useSimulationWebSocket'
 import type { Simulation } from '~/types/drizzle'
 
 // Define minimal types for the rendered data
@@ -60,12 +60,23 @@ const ConnectionStatus = ({
   connectionState, 
   error, 
   lastUpdateTime,
-  onReconnect 
+  onReconnect,
+  simulationId,
+  wsData
 }: { 
   connectionState: string
   error: string | null
   lastUpdateTime: Date | null
   onReconnect: () => void
+  simulationId: string
+  wsData: {
+    simulation_id: number | null
+    current_tick: number
+    ants: RenderAnt[]
+    colonies: RenderColony[]
+    foodSources: RenderFoodSource[]
+    pheromoneTrails: RenderPheromoneTrail[]
+  } | null
 }) => {
   const getStatusColor = () => {
     switch (connectionState) {
@@ -88,21 +99,46 @@ const ConnectionStatus = ({
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className={getStatusColor()}>
-        {getStatusIcon()} {connectionState.charAt(0).toUpperCase() + connectionState.slice(1)}
-      </span>
-      {lastUpdateTime && (
-        <span className="text-gray-500">
-          Last update: {lastUpdateTime.toLocaleTimeString()}
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm">
+        <span className={getStatusColor()}>
+          {getStatusIcon()} {connectionState.charAt(0).toUpperCase() + connectionState.slice(1)}
         </span>
+        {lastUpdateTime && (
+          <span className="text-gray-500">
+            Last update: {lastUpdateTime.toLocaleTimeString()}
+          </span>
+        )}
+        {error && (
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 text-xs">{error}</span>
+            <Button onClick={onReconnect} variant="outline" size="sm">
+              Retry
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      {/* Debug information */}
+      {connectionState === 'connecting' && (
+        <div className="text-xs text-gray-500 bg-yellow-50 p-2 rounded border">
+          <p className="font-medium">Debug Info:</p>
+          <p>If stuck here for more than 10 seconds, check browser console for WebSocket logs.</p>
+          <p>Server shows connection but client state is stuck - this suggests the onopen event isn't firing.</p>
+        </div>
       )}
-      {error && (
-        <div className="flex items-center gap-2">
-          <span className="text-red-600 text-xs">{error}</span>
-          <Button onClick={onReconnect} variant="outline" size="sm">
-            Retry
-          </Button>
+      
+      {connectionState === 'connected' && !wsData && (
+        <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border">
+          <p className="font-medium">WebSocket Connected - Waiting for Data:</p>
+          <p>• Simulation ID: {simulationId}</p>
+          <p>• Connection: Established</p>
+          <p>• Subscription: Sent</p>
+          <p>• Status: Waiting for server response...</p>
+          <p className="text-orange-600">If no data appears within 10 seconds, check:</p>
+          <p className="ml-2">- Does simulation {simulationId} exist?</p>
+          <p className="ml-2">- Is the simulation server running?</p>
+          <p className="ml-2">- Check browser console for detailed logs</p>
         </div>
       )}
     </div>
@@ -130,7 +166,7 @@ const SimulationField = ({
     )
   }
 
-  const gridSize = 20 // Size of each grid square in pixels
+  const gridSize = 4 // Size of each grid square in pixels
   const fieldWidth = Math.min(simulation.world_width, 800) // Limit display width
   const fieldHeight = Math.min(simulation.world_height, 600) // Limit display height
   const gridCols = Math.floor(fieldWidth / gridSize)
@@ -305,6 +341,15 @@ const SimulationPage = () => {
     lastUpdateTime 
   } = useSimulationWebSocket(simulationId)
 
+  console.log({
+    wsData,
+    connectionState, 
+    isLoading, 
+    error, 
+    connect,
+    lastUpdateTime 
+  })
+
   // Fallback to get simulation metadata if needed
   // This could be enhanced to fetch initial simulation data when WebSocket is not available
   // For now, we'll rely on the WebSocket FullState message
@@ -334,6 +379,8 @@ const SimulationPage = () => {
             error={error}
             lastUpdateTime={lastUpdateTime}
             onReconnect={connect}
+            simulationId={simulationId}
+            wsData={wsData}
           />
         </div>
         <div className="flex gap-2">
@@ -346,6 +393,27 @@ const SimulationPage = () => {
             disabled={connectionState === 'connecting'}
           >
             {connectionState === 'connecting' ? 'Connecting...' : 'Reconnect'}
+          </Button>
+          <Button 
+            onClick={() => {
+              // Simple WebSocket test outside of React hook
+              console.log('🧪 Testing raw WebSocket connection...')
+              const testWs = new WebSocket('ws://127.0.0.1:8080/ws')
+              testWs.onopen = () => {
+                console.log('✅ Raw WebSocket test: CONNECTED')
+                testWs.close()
+              }
+              testWs.onerror = (err) => {
+                console.error('❌ Raw WebSocket test: ERROR', err)
+              }
+              testWs.onclose = (event) => {
+                console.log('🔌 Raw WebSocket test: CLOSED', event.code, event.reason)
+              }
+            }}
+            variant="secondary"
+            size="sm"
+          >
+            Test WS
           </Button>
           {hasSimulation && <AddAntsButton />}
           {hasSimulation && <AddFoodSourcesButton />}

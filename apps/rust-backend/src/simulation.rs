@@ -24,6 +24,8 @@ pub struct AntColonySimulator {
     previous_ants: Vec<FastAnt>,
     previous_colonies: Vec<FastColony>,
     previous_food_sources: Vec<FastFoodSource>,
+    // Channel for receiving FullState requests
+    fullstate_request_rx: Option<tokio::sync::mpsc::UnboundedReceiver<i32>>,
 }
 
 impl AntColonySimulator {
@@ -48,6 +50,9 @@ impl AntColonySimulator {
         let environment_manager = EnvironmentManager::new(cache.clone(), db.clone());
         let pheromone_manager = PheromoneManager::new(cache.clone());
 
+        // Get the FullState request receiver from the WebSocket manager
+        let fullstate_request_rx = websocket_manager.take_fullstate_receiver().await;
+
         Ok(Self {
             cache,
             db,
@@ -63,6 +68,7 @@ impl AntColonySimulator {
             previous_ants: Vec::new(),
             previous_colonies: Vec::new(),
             previous_food_sources: Vec::new(),
+            fullstate_request_rx,
         })
     }
 
@@ -148,67 +154,94 @@ impl AntColonySimulator {
 
         let mut ticker = interval(self.tick_interval);
         let mut current_tick = self.cache.get_current_tick().await;
+        
+        // Extract the receiver for FullState requests
+        let mut fullstate_request_rx = self.fullstate_request_rx.take();
 
         loop {
             if !self.is_running {
                 break;
             }
 
-            ticker.tick().await;
-            let tick_start = Instant::now();
+            tokio::select! {
+                // Main simulation tick
+                _ = ticker.tick() => {
+                    let tick_start = Instant::now();
 
-            current_tick += 1;
-            self.cache.set_current_tick(current_tick).await;
+                    current_tick += 1;
+                    self.cache.set_current_tick(current_tick).await;
 
-            // Process simulation tick
-            if let Err(e) = self.process_tick(current_tick).await {
-                tracing::error!("Error processing tick {}: {}", current_tick, e);
-            }
+                    // Process simulation tick
+                    if let Err(e) = self.process_tick(current_tick).await {
+                        tracing::error!("Error processing tick {}: {}", current_tick, e);
+                    }
 
-            // Periodic database synchronization (much less frequent than Node.js)
-            if current_tick % self.db_sync_interval == 0 {
-                if let Err(e) = self.sync_to_database(current_tick).await {
-                    tracing::error!("Failed to sync to database at tick {}: {}", current_tick, e);
+                    // Periodic database synchronization (much less frequent than Node.js)
+                    if current_tick % self.db_sync_interval == 0 {
+                        if let Err(e) = self.sync_to_database(current_tick).await {
+                            tracing::error!("Failed to sync to database at tick {}: {}", current_tick, e);
+                        }
+                    }
+
+                    // Periodic WebSocket broadcasting for real-time updates
+                    if current_tick % self.websocket_broadcast_interval == 0 {
+                        if let Err(e) = self.broadcast_websocket_update(current_tick).await {
+                            tracing::error!("Failed to broadcast WebSocket update at tick {}: {}", current_tick, e);
+                        }
+                    }
+
+                    let tick_duration = tick_start.elapsed();
+                    
+                    // Log progress every 100 ticks
+                    if current_tick % 100 == 0 {
+                        let stats = self.cache.get_stats();
+                        tracing::info!(
+                            "📊 Tick {} - Ants: {}, Colonies: {}, Food: {}, Pheromones: {} ({}ms)",
+                            current_tick,
+                            stats.total_ants,
+                            stats.active_colonies,
+                            stats.total_food_collected,
+                            stats.pheromone_trail_count,
+                            tick_duration.as_millis()
+                        );
+                    }
+
+                    // Warn if tick is taking too long
+                    if tick_duration > self.tick_interval {
+                        tracing::warn!(
+                            "⚠️ Tick {} took {}ms (target: {}ms)",
+                            current_tick,
+                            tick_duration.as_millis(),
+                            self.tick_interval.as_millis()
+                        );
+                    }
                 }
-            }
-
-            // Periodic WebSocket broadcasting for real-time updates
-            if current_tick % self.websocket_broadcast_interval == 0 {
-                if let Err(e) = self.broadcast_websocket_update(current_tick).await {
-                    tracing::error!("Failed to broadcast WebSocket update at tick {}: {}", current_tick, e);
+                
+                // Handle FullState requests
+                simulation_id = async {
+                    if let Some(ref mut rx) = fullstate_request_rx {
+                        rx.recv().await
+                    } else {
+                        // If no receiver, wait forever (this branch won't be selected)
+                        std::future::pending().await
+                    }
+                } => {
+                    if let Some(requested_sim_id) = simulation_id {
+                        if requested_sim_id == self.cache.simulation_id {
+                            tracing::info!("📡 Sending immediate FullState broadcast for simulation {}", requested_sim_id);
+                            if let Err(e) = self.send_immediate_fullstate(current_tick).await {
+                                tracing::error!("Failed to send immediate FullState: {}", e);
+                            }
+                        } else {
+                            tracing::warn!("Received FullState request for simulation {} but running simulation {}", 
+                                requested_sim_id, self.cache.simulation_id);
+                        }
+                    }
                 }
-            }
-
-            let tick_duration = tick_start.elapsed();
-            
-            // Log progress every 100 ticks
-            if current_tick % 100 == 0 {
-                let stats = self.cache.get_stats();
-                tracing::info!(
-                    "📊 Tick {} - Ants: {}, Colonies: {}, Food: {}, Pheromones: {} ({}ms)",
-                    current_tick,
-                    stats.total_ants,
-                    stats.active_colonies,
-                    stats.total_food_collected,
-                    stats.pheromone_trail_count,
-                    tick_duration.as_millis()
-                );
-            }
-
-            // Warn if tick is taking too long
-            if tick_duration > self.tick_interval {
-                tracing::warn!(
-                    "Tick {} took {}ms (target: {}ms)",
-                    current_tick,
-                    tick_duration.as_millis(),
-                    self.tick_interval.as_millis()
-                );
             }
         }
 
-        // Final sync to database when stopping
-        self.sync_to_database(current_tick).await?;
-        tracing::info!("🛑 Simulation stopped at tick {}", current_tick);
+        tracing::info!("🛑 Ant colony simulation stopped");
         Ok(())
     }
 
@@ -295,6 +328,49 @@ impl AntColonySimulator {
             dirty_food_ids.len(),
             sync_duration.as_millis()
         );
+
+        Ok(())
+    }
+
+    /// Send an immediate FullState broadcast (used when clients subscribe)
+    async fn send_immediate_fullstate(&self, current_tick: i64) -> Result<()> {
+        // Only broadcast if there are connected clients
+        if self.websocket_manager.client_count().await == 0 {
+            return Ok(());
+        }
+
+        let broadcast_start = Instant::now();
+
+        // Get current simulation state
+        let current_ants: Vec<FastAnt> = self.cache.ants.iter().map(|entry| entry.clone()).collect();
+        let current_colonies: Vec<FastColony> = self.cache.colonies.iter().map(|entry| entry.clone()).collect();
+        let current_food_sources: Vec<FastFoodSource> = self.cache.food_sources.iter().map(|entry| entry.clone()).collect();
+        let current_pheromone_trails: Vec<FastPheromoneTrail> = self.cache.pheromone_trails.iter().map(|entry| entry.clone()).collect();
+
+        // Always send FullState for immediate requests
+        let message = SimulationMessage::FullState {
+            simulation_id: self.cache.simulation_id,
+            tick: current_tick,
+            ants: current_ants,
+            colonies: current_colonies,
+            food_sources: current_food_sources,
+            pheromone_trails: current_pheromone_trails,
+        };
+
+        // Broadcast the message
+        match self.websocket_manager.broadcast(message) {
+            Ok(client_count) => {
+                let broadcast_duration = broadcast_start.elapsed();
+                tracing::info!(
+                    "📡 Immediate FullState broadcast complete - {} clients notified ({}ms)",
+                    client_count,
+                    broadcast_duration.as_millis()
+                );
+            }
+            Err(e) => {
+                tracing::warn!("Failed to broadcast immediate FullState: {}", e);
+            }
+        }
 
         Ok(())
     }
