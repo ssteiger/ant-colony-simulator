@@ -105,8 +105,8 @@ CREATE TABLE pheromone_trails (
     decay_rate INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP WITH TIME ZONE,
-    source_ant_id INTEGER REFERENCES ants(id),
-    target_food_id INTEGER REFERENCES food_sources(id)
+    source_ant_id INTEGER REFERENCES ants(id) ON DELETE CASCADE,
+    target_food_id INTEGER REFERENCES food_sources(id) ON DELETE CASCADE
 );
 
 -- Environmental obstacles
@@ -141,7 +141,7 @@ CREATE TABLE predators (
     health INTEGER NOT NULL DEFAULT 50,
     hunger INTEGER NOT NULL DEFAULT 0,
     state VARCHAR(30) DEFAULT 'patrolling', -- patrolling, hunting, eating, resting
-    target_ant_id INTEGER REFERENCES ants(id),
+    target_ant_id INTEGER REFERENCES ants(id) ON DELETE SET NULL,
     last_hunt_tick INTEGER DEFAULT 0,
     territory_center_x INTEGER,
     territory_center_y INTEGER,
@@ -167,8 +167,8 @@ CREATE TABLE simulation_events (
 -- Combat and interactions between ants
 CREATE TABLE ant_interactions (
     id SERIAL PRIMARY KEY,
-    ant1_id INTEGER NOT NULL REFERENCES ants(id),
-    ant2_id INTEGER NOT NULL REFERENCES ants(id),
+    ant1_id INTEGER NOT NULL REFERENCES ants(id) ON DELETE CASCADE,
+    ant2_id INTEGER NOT NULL REFERENCES ants(id) ON DELETE CASCADE,
     interaction_type VARCHAR(30) NOT NULL, -- fight, help, trade, recruit
     outcome VARCHAR(30), -- win, lose, draw, success, failure
     damage_dealt INTEGER DEFAULT 0,
@@ -183,8 +183,8 @@ CREATE TABLE ant_interactions (
 CREATE TABLE ant_genetics (
     id SERIAL PRIMARY KEY,
     ant_id INTEGER NOT NULL REFERENCES ants(id) ON DELETE CASCADE,
-    parent1_id INTEGER REFERENCES ants(id),
-    parent2_id INTEGER REFERENCES ants(id),
+    parent1_id INTEGER REFERENCES ants(id) ON DELETE SET NULL,
+    parent2_id INTEGER REFERENCES ants(id) ON DELETE SET NULL,
     generation INTEGER NOT NULL DEFAULT 1,
     genes JSONB NOT NULL, -- {speed: 0.12, strength: -0.05, intelligence: 0.08}
     fitness_score INTEGER, -- calculated based on performance
@@ -215,7 +215,7 @@ CREATE TABLE simulation_stats (
     active_combats INTEGER NOT NULL DEFAULT 0,
     weather_effects_active INTEGER NOT NULL DEFAULT 0,
     average_ant_health INTEGER,
-    dominant_colony_id INTEGER REFERENCES colonies(id),
+    dominant_colony_id INTEGER REFERENCES colonies(id) ON DELETE SET NULL,
     recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
