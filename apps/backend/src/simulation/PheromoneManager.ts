@@ -164,9 +164,9 @@ export class PheromoneManager {
         return false
       }
 
-      // Create new pheromone trail
+      // Create new pheromone trail with shorter lifespan
       const expiresAt = new Date()
-      expiresAt.setMinutes(expiresAt.getMinutes() + 30) // Trail lasts 30 minutes
+      expiresAt.setMinutes(expiresAt.getMinutes() + 5) // Reduced from 30 to 5 minutes
 
       const { error } = await this.supabase
         .from('pheromone_trails')
@@ -176,7 +176,7 @@ export class PheromoneManager {
           position_x: Math.round(ant.position_x),
           position_y: Math.round(ant.position_y),
           strength: 80, // Convert 0.8 to integer scale (0.8 * 100)
-          decay_rate: 2, // Convert 0.002 to integer scale (0.002 * 1000)
+          decay_rate: 5, // Increased from 2 to 5 for faster decay
           expires_at: expiresAt.toISOString(),
           source_ant_id: ant.id
         })
@@ -204,12 +204,17 @@ export class PheromoneManager {
   async getPheromoneInfluence(x: number, y: number, colonyId: string, radius = 20): Promise<{ direction: number; strength: number }> {
     console.log(`🔬 PheromoneManager: Getting pheromone influence at (${x.toFixed(1)}, ${y.toFixed(1)}) for colony ${colonyId}`)
     
-    // Get all pheromone trails within radius
+    // Add spatial filtering to only get trails within radius + small buffer
+    const searchRadius = radius + 5 // Small buffer for edge cases
     const { data: trails } = await this.supabase
       .from('pheromone_trails')
       .select('*')
       .eq('colony_id', colonyId)
       .gt('strength', 10) // Adjusted for integer scale (0.1 * 100)
+      .gte('position_x', x - searchRadius)
+      .lte('position_x', x + searchRadius)
+      .gte('position_y', y - searchRadius)
+      .lte('position_y', y + searchRadius)
 
     if (!trails || trails.length === 0) {
       console.log('🔬 PheromoneManager: No trails found for influence calculation')
@@ -226,10 +231,12 @@ export class PheromoneManager {
         (trail.position_x - x) ** 2 + (trail.position_y - y) ** 2
       )
 
+      // Hard cutoff at radius - no influence beyond this distance
       if (distance <= radius && distance > 0) {
-        // Calculate influence based on distance and trail strength
-        // Convert back to decimal scale for calculation
-        const influence = (trail.strength / 100) / (1 + distance * 0.1)
+        // Much stronger distance decay - exponential falloff
+        const normalizedDistance = distance / radius // 0 to 1
+        const distanceDecay = Math.exp(-normalizedDistance * 3) // Exponential decay
+        const influence = (trail.strength / 100) * distanceDecay
         
         // Direction vector from current position to trail
         const dirX = (trail.position_x - x) / distance
@@ -263,7 +270,7 @@ export class PheromoneManager {
     console.log(`🔬 PheromoneManager: Creating danger trail at (${x.toFixed(1)}, ${y.toFixed(1)}) for colony ${colonyId}`)
     
     const expiresAt = new Date()
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10) // Danger trails last 10 minutes
+    expiresAt.setMinutes(expiresAt.getMinutes() + 3) // Reduced from 10 to 3 minutes
 
     try {
       const { error } = await this.supabase
@@ -274,7 +281,7 @@ export class PheromoneManager {
           position_x: Math.round(x),
           position_y: Math.round(y),
           strength: 100, // Convert 1.0 to integer scale (1.0 * 100)
-          decay_rate: 10, // Convert 0.01 to integer scale (0.01 * 1000)
+          decay_rate: 15, // Increased from 10 to 15 for faster decay
           expires_at: expiresAt.toISOString()
         })
 
@@ -326,7 +333,7 @@ export class PheromoneManager {
 
       // Create new pheromone trail
       const expiresAt = new Date()
-      expiresAt.setMinutes(expiresAt.getMinutes() + 45) // Food discovery trails last longer
+      expiresAt.setMinutes(expiresAt.getMinutes() + 8) // Reduced from 45 to 8 minutes
 
       const { error } = await this.supabase
         .from('pheromone_trails')
@@ -336,7 +343,7 @@ export class PheromoneManager {
           position_x: Math.round(x),
           position_y: Math.round(y),
           strength: Math.min(100, Math.round(strength * 100)), // Convert to integer scale
-          decay_rate: 1, // Convert 0.001 to integer scale (0.001 * 1000)
+          decay_rate: 3, // Increased from 1 to 3 for faster decay
           expires_at: expiresAt.toISOString(),
           target_food_id: targetFoodId
         })

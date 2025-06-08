@@ -239,31 +239,28 @@ const SimulationField = ({
           <g key={`trails-${trailType}`}>
             {trails.map((trail) => {
               const colony = colonies.find(c => c.id === trail.colony_id);
-              const opacity = Math.max(0.1, Math.min(0.8, trail.strength));
               
-              // Different colors for different trail types
-              let trailColor = '#9333ea'; // purple for default
-              if (trailType === 'food') trailColor = '#059669'; // green
-              if (trailType === 'danger') trailColor = '#dc2626'; // red
-              if (trailType === 'territory') trailColor = '#2563eb'; // blue
-              if (trailType === 'recruitment') trailColor = '#ea580c'; // orange
+              // Only render food trails as path markers
+              if (trailType !== 'food') {
+                return null;
+              }
               
-              // Use colony color if available, otherwise use trail type color
-              const finalColor = colony 
-                ? `hsl(${colony.color_hue}, 70%, 50%)`
-                : trailColor;
+              // Simple path marker - small dot with fade based on strength
+              const opacity = Math.max(0.3, Math.min(0.9, trail.strength / 100));
+              const trailColor = colony 
+                ? `hsl(${colony.color_hue}, 80%, 60%)`
+                : '#059669'; // green for food trails
 
               return (
                 <circle
                   key={trail.id}
                   cx={Math.min(Number(trail.position_x), fieldWidth)}
                   cy={Math.min(Number(trail.position_y), fieldHeight)}
-                  r={Math.max(1, trail.strength * 3)}
-                  fill={finalColor}
+                  r={2} // Fixed small size for path markers
+                  fill={trailColor}
                   opacity={opacity}
-                  className="animate-pulse"
                 >
-                  <title>{`${trailType.charAt(0).toUpperCase() + trailType.slice(1)} Trail | Strength: ${Number(trail.strength).toFixed(2)} | Position: (${trail.position_x}, ${trail.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
+                  <title>{`Food Trail | Strength: ${Number(trail.strength).toFixed(0)} | Position: (${trail.position_x}, ${trail.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
                 </circle>
               );
             })}
@@ -410,7 +407,7 @@ const SimulationPage = () => {
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">Simulation Field</h3>
         <p className="text-sm text-muted-foreground">
-          White grid shows coordinates. Brown dots are ants (purple when carrying food), colored circles are colonies, green circles are food sources, colored dots are pheromone trails.
+          White grid shows coordinates. Brown dots are ants (purple when carrying food), colored circles are colonies, green circles are food sources, small colored dots show food trails left by ants.
         </p>
       </div>
 
