@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ant, FoodSource, AntType } from '../types/drizzle'
 import type { Database } from '../types/supabase'
 import { PheromoneManager } from './PheromoneManager'
+import { SimulationCache } from './Cache'
 
 // Extended ant type with joined relations from Supabase query
 type AntWithRelations = Ant & {
@@ -13,6 +14,7 @@ export class AntBehaviorManager {
   private supabase: SupabaseClient<Database>
   private simulationId: string | null = null
   private pheromoneManager: PheromoneManager
+  private cache: SimulationCache
   private antUpdates: Array<{
     id: string;
     position_x: number;
@@ -28,12 +30,17 @@ export class AntBehaviorManager {
   constructor(supabase: SupabaseClient<Database>) {
     this.supabase = supabase
     this.pheromoneManager = new PheromoneManager(supabase)
+    this.cache = new SimulationCache(supabase)
     console.log('🐜 AntBehaviorManager: Constructor initialized')
   }
 
   async initialize(simulationId: string): Promise<void> {
     this.simulationId = simulationId
     await this.pheromoneManager.initialize(simulationId)
+    
+    // Initialize cache
+    await this.cache.initialize(simulationId)
+    
     console.log('🐜 AntBehaviorManager: Initialized for simulation:', simulationId)
   }
 
@@ -43,6 +50,9 @@ export class AntBehaviorManager {
     }
 
     console.log(`🐜 AntBehaviorManager: Processing tick ${tick}`)
+
+    // Refresh cache periodically
+    await this.cache.refreshCacheIfNeeded()
 
     // Get all living ants in the simulation with their ant type information
     const { data: ants } = await this.supabase
@@ -279,15 +289,10 @@ export class AntBehaviorManager {
   }
 
   private async moveAntRandomly(ant: AntWithRelations): Promise<void> {
-    // Fetch world bounds from simulation
-    const { data: simulation } = await this.supabase
-      .from('simulations')
-      .select('world_width, world_height')
-      .eq('id', this.simulationId)
-      .single()
-
-    if (!simulation) {
-      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
+    // Use cached world bounds instead of querying database
+    const worldBounds = this.cache.getWorldBounds()
+    if (!worldBounds) {
+      console.error(`🐜 World bounds not cached for simulation ${this.simulationId}`)
       return
     }
 
@@ -318,22 +323,22 @@ export class AntBehaviorManager {
     if (newX < 0) {
       boundedX = Math.abs(newX) // Reflect off left boundary
       finalAngle = Math.PI - currentAngle
-    } else if (newX > simulation.world_width) {
-      boundedX = simulation.world_width - (newX - simulation.world_width)
+    } else if (newX > worldBounds.width) {
+      boundedX = worldBounds.width - (newX - worldBounds.width)
       finalAngle = Math.PI - currentAngle
     }
 
     if (newY < 0) {
       boundedY = Math.abs(newY) // Reflect off top boundary
       finalAngle = -currentAngle
-    } else if (newY > simulation.world_height) {
-      boundedY = simulation.world_height - (newY - simulation.world_height)
+    } else if (newY > worldBounds.height) {
+      boundedY = worldBounds.height - (newY - worldBounds.height)
       finalAngle = -currentAngle
     }
 
     // Ensure we stay within bounds after reflection
-    boundedX = Math.max(0, Math.min(simulation.world_width, boundedX))
-    boundedY = Math.max(0, Math.min(simulation.world_height, boundedY))
+    boundedX = Math.max(0, Math.min(worldBounds.width, boundedX))
+    boundedY = Math.max(0, Math.min(worldBounds.height, boundedY))
 
     // Normalize angle to [0, 2π] range
     finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
@@ -436,15 +441,11 @@ export class AntBehaviorManager {
   }
 
   private async moveAntTowardsColony(ant: AntWithRelations): Promise<void> {
-    // Get colony position
-    const { data: colony } = await this.supabase
-      .from('colonies')
-      .select('center_x, center_y, name')
-      .eq('id', ant.colony_id)
-      .single()
+    // Use cached colony position instead of querying database
+    const colony = this.cache.getColony(ant.colony_id)
 
     if (!colony) {
-      console.error(`🐜 Ant ${ant.id} cannot find its colony ${ant.colony_id}`)
+      console.error(`🐜 Ant ${ant.id} cannot find colony ${ant.colony_id} in cache`)
       return
     }
 
@@ -538,6 +539,9 @@ export class AntBehaviorManager {
       .from('food_sources')
       .update({ amount: newFoodAmount })
       .eq('id', foodSource.id)
+
+    // Update cached food source amount
+    this.cache.updateFoodSource(foodSource.id, newFoodAmount)
 
     // Update ant to carry food
     const carriedResources: Record<string, number> = { [foodSource.food_type]: collectionAmount }
@@ -637,22 +641,21 @@ export class AntBehaviorManager {
       return null
     }
 
-    const { data: foodSources } = await this.supabase
-      .from('food_sources')
-      .select('*')
-      .eq('simulation_id', this.simulationId)
-      .gt('amount', 0)
-
-    if (!foodSources) {
-      console.log(`🐜 No food sources found in simulation ${this.simulationId}`)
+    // Use cached food sources instead of querying database
+    const foodSources = this.cache.getFoodSources()
+    if (foodSources.length === 0) {
+      console.log(`🐜 No food sources in cache for simulation ${this.simulationId}`)
       return null
     }
 
-    // Find closest food within radius
+    // Find closest food within radius from cache
     let closestFood: FoodSource | null = null
     let closestDistance = radius
 
     for (const food of foodSources) {
+      // Only consider food sources with amount > 0
+      if (food.amount <= 0) continue
+      
       const distance = Math.sqrt(
         (food.position_x - x) ** 2 + (food.position_y - y) ** 2
       )
@@ -732,20 +735,15 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(combinedDirection) * moveDistance
     const newY = ant.position_y + Math.sin(combinedDirection) * moveDistance
 
-    // Ensure position stays within world bounds
-    const { data: simulation } = await this.supabase
-      .from('simulations')
-      .select('world_width, world_height')
-      .eq('id', this.simulationId)
-      .single()
-
-    if (!simulation) {
-      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
+    // Ensure position stays within world bounds using cached bounds
+    const worldBounds = this.cache.getWorldBounds()
+    if (!worldBounds) {
+      console.error(`🐜 World bounds not cached for simulation ${this.simulationId}`)
       return
     }
 
-    const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
-    const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
+    const boundedX = Math.max(0, Math.min(worldBounds.width, newX))
+    const boundedY = Math.max(0, Math.min(worldBounds.height, newY))
 
     // Round positions to integers
     const roundedX = Math.round(boundedX)
@@ -793,14 +791,10 @@ export class AntBehaviorManager {
     // Scouts move with longer, more aggressive exploration patterns
     // They're designed to find new food sources and create initial trails
     
-    const { data: simulation } = await this.supabase
-      .from('simulations')
-      .select('world_width, world_height')
-      .eq('id', this.simulationId)
-      .single()
-
-    if (!simulation) {
-      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
+    // Use cached world bounds instead of querying database
+    const worldBounds = this.cache.getWorldBounds()
+    if (!worldBounds) {
+      console.error(`🐜 World bounds not cached for simulation ${this.simulationId}`)
       return
     }
 
@@ -808,11 +802,7 @@ export class AntBehaviorManager {
     let currentAngle = (ant.angle * Math.PI) / 180
 
     // Get colony position for exploration bias
-    const { data: colony } = await this.supabase
-      .from('colonies')
-      .select('center_x, center_y')
-      .eq('id', ant.colony_id)
-      .single()
+    const colony = this.cache.getColony(ant.colony_id)
 
     // 20% chance to randomly change direction by up to 30% (more aggressive than regular ants)
     if (Math.random() < 0.2) {
@@ -852,7 +842,7 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(currentAngle) * moveDistance
     const newY = ant.position_y + Math.sin(currentAngle) * moveDistance
 
-    // Handle boundaries with reflection
+    // Handle boundaries with reflection using cached world bounds
     let boundedX = newX
     let boundedY = newY
     let finalAngle = currentAngle
@@ -860,22 +850,22 @@ export class AntBehaviorManager {
     if (newX < 0) {
       boundedX = Math.abs(newX)
       finalAngle = Math.PI - currentAngle
-    } else if (newX > simulation.world_width) {
-      boundedX = simulation.world_width - (newX - simulation.world_width)
+    } else if (newX > worldBounds.width) {
+      boundedX = worldBounds.width - (newX - worldBounds.width)
       finalAngle = Math.PI - currentAngle
     }
 
     if (newY < 0) {
       boundedY = Math.abs(newY)
       finalAngle = -currentAngle
-    } else if (newY > simulation.world_height) {
-      boundedY = simulation.world_height - (newY - simulation.world_height)
+    } else if (newY > worldBounds.height) {
+      boundedY = worldBounds.height - (newY - worldBounds.height)
       finalAngle = -currentAngle
     }
 
     // Ensure we stay within bounds after reflection
-    boundedX = Math.max(0, Math.min(simulation.world_width, boundedX))
-    boundedY = Math.max(0, Math.min(simulation.world_height, boundedY))
+    boundedX = Math.max(0, Math.min(worldBounds.width, boundedX))
+    boundedY = Math.max(0, Math.min(worldBounds.height, boundedY))
 
     // Normalize angle to [0, 2π] range
     finalAngle = ((finalAngle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI)
@@ -924,26 +914,19 @@ export class AntBehaviorManager {
     // Soldiers patrol in a more systematic pattern around the colony
     // They move in expanding circles or follow defensive patterns
     
-    const { data: colony } = await this.supabase
-      .from('colonies')
-      .select('center_x, center_y, name')
-      .eq('id', ant.colony_id)
-      .single()
+    // Use cached colony position instead of querying database
+    const colony = this.cache.getColony(ant.colony_id)
 
     if (!colony) {
-      console.error(`🐜 Soldier ant ${ant.id} cannot find colony ${ant.colony_id}`)
+      console.error(`🐜 Soldier ant ${ant.id} cannot find colony ${ant.colony_id} in cache`)
       await this.moveAntRandomly(ant)
       return
     }
 
-    const { data: simulation } = await this.supabase
-      .from('simulations')
-      .select('world_width, world_height')
-      .eq('id', this.simulationId)
-      .single()
-
-    if (!simulation) {
-      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
+    // Use cached world bounds instead of querying database
+    const worldBounds = this.cache.getWorldBounds()
+    if (!worldBounds) {
+      console.error(`🐜 World bounds not cached for simulation ${this.simulationId}`)
       return
     }
 
@@ -985,9 +968,9 @@ export class AntBehaviorManager {
     const newX = ant.position_x + Math.cos(direction) * moveDistance
     const newY = ant.position_y + Math.sin(direction) * moveDistance
 
-    // Ensure position stays within world bounds
-    const boundedX = Math.max(0, Math.min(simulation.world_width, newX))
-    const boundedY = Math.max(0, Math.min(simulation.world_height, newY))
+    // Ensure position stays within world bounds using cached bounds
+    const boundedX = Math.max(0, Math.min(worldBounds.width, newX))
+    const boundedY = Math.max(0, Math.min(worldBounds.height, newY))
 
     const roundedX = Math.round(boundedX)
     const roundedY = Math.round(boundedY)
@@ -1052,4 +1035,4 @@ export class AntBehaviorManager {
   }): void {
     this.antUpdates.push(update)
   }
-} 
+}
