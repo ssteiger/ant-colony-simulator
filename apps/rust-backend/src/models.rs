@@ -111,7 +111,7 @@ pub struct PheromoneTrail {
 }
 
 // Runtime optimized structures for in-memory processing
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FastAnt {
     pub id: i32,
     pub colony_id: i32,
@@ -128,7 +128,7 @@ pub struct FastAnt {
     pub last_action_tick: i64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FastColony {
     pub id: i32,
     pub center: (f32, f32),
@@ -139,7 +139,7 @@ pub struct FastColony {
     pub aggression_level: f32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FastFoodSource {
     pub id: i32,
     pub position: (f32, f32),
@@ -150,7 +150,7 @@ pub struct FastFoodSource {
     pub is_renewable: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FastPheromoneTrail {
     pub id: i32,
     pub colony_id: i32,
@@ -162,7 +162,7 @@ pub struct FastPheromoneTrail {
     pub target_food_id: Option<i32>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AntState {
     Wandering,
     SeekingFood,
@@ -174,14 +174,14 @@ pub enum AntState {
     Dead,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Target {
     Food(i32),
     Colony(i32),
     Position(f32, f32),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PheromoneType {
     Food,
     Danger,

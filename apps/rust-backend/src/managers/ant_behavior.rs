@@ -385,7 +385,7 @@ impl AntBehaviorManager {
         Ok(())
     }
 
-    fn collect_food(&self, ant: &FastAnt, food_id: i32, current_tick: i64) -> anyhow::Result<()> {
+    fn collect_food(&self, ant: &FastAnt, food_id: i32, _current_tick: i64) -> anyhow::Result<()> {
         // Try to collect food from the source
         let mut food_collected = 0;
         

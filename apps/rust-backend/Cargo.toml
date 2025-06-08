@@ -19,6 +19,12 @@ rand = { version = "0.8", features = ["small_rng"] }
 nalgebra = "0.33"
 clap = { version = "4.5", features = ["derive"] }
 config = "0.14"
+# WebSocket support for real-time communication
+axum = { version = "0.7", features = ["ws"] }
+tokio-tungstenite = "0.21"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+futures-util = "0.3"
 
 [lib]
 name = "ant_colony_simulator"

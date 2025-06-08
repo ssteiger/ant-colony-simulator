@@ -1,9 +1,10 @@
-use ant_colony_simulator::simulation::AntColonySimulator;
+use ant_colony_simulator::{AntColonySimulator, WebSocketManager, SimulationServer};
 use anyhow::Result;
 use clap::Parser;
 use sqlx::postgres::PgPoolOptions;
 use tracing::{info, Level};
 use tracing_subscriber;
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -19,6 +20,10 @@ struct Args {
     /// Log level (trace, debug, info, warn, error)
     #[arg(short, long, default_value = "info")]
     log_level: String,
+
+    /// WebSocket server address
+    #[arg(short, long, default_value = "127.0.0.1:8080")]
+    server_addr: String,
 }
 
 #[tokio::main]
@@ -44,6 +49,7 @@ async fn main() -> Result<()> {
 
     info!("🚀 Starting Ant Colony Simulator (Rust Backend)");
     info!("📊 Log level: {}", log_level);
+    info!("🌐 WebSocket server will start on: {}", args.server_addr);
 
     // Get database URL from argument or environment variable
     let database_url = args.database_url
@@ -84,9 +90,21 @@ async fn main() -> Result<()> {
         }
     };
 
+    // Create WebSocket manager
+    let websocket_manager = Arc::new(WebSocketManager::new());
+
+    // Create and start WebSocket server
+    let server = SimulationServer::new((*websocket_manager).clone());
+    let server_addr = args.server_addr.clone();
+    let mut server_handle = tokio::spawn(async move {
+        if let Err(e) = server.start(&server_addr).await {
+            tracing::error!("WebSocket server error: {}", e);
+        }
+    });
+
     // Create and start simulator
     info!("🎮 Initializing simulation: {}", simulation_id);
-    let mut simulator = AntColonySimulator::new(pool, simulation_id).await?;
+    let mut simulator = AntColonySimulator::new(pool, simulation_id, websocket_manager).await?;
 
     // Handle graceful shutdown
     let mut simulator_handle = tokio::spawn(async move {
@@ -102,6 +120,9 @@ async fn main() -> Result<()> {
         }
         _ = &mut simulator_handle => {
             info!("🏁 Simulation completed");
+        }
+        _ = &mut server_handle => {
+            info!("🌐 WebSocket server stopped");
         }
     }
 

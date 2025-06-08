@@ -1,13 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { postgres_db, schema, eq, and, gt } from '@ant-colony-simulator/db-drizzle'
 import { AddAntsButton } from './-components/add-ants-button'
 import { CreateSimulationButton } from '../-components/create-simulation-button'
 import { DeleteSimulationButton } from './-components/delete-simulation-button'
 import { AddFoodSourcesButton } from './-components/add-food-sources'
 import { ResetAntPositionsButton } from './-components/reset-ant-positions'
 import { Button } from '~/lib/components/ui/button'
+import { useSimulationWebSocket } from '~/hooks/useSimulationWebSocket'
 import type { Simulation } from '~/types/drizzle'
 
 // Define minimal types for the rendered data
@@ -57,116 +55,59 @@ type RenderPheromoneTrail = {
   strength: number;
 }
 
-type SimulationData = {
-  simulation: Simulation | null
-  ants: RenderAnt[]
-  colonies: RenderColony[]
-  foodSources: RenderFoodSource[]
-  pheromoneTrails: RenderPheromoneTrail[]
-}
-
-const getSimulationData = createServerFn({ method: 'GET' })
-  .validator((data: { simulationId: string }) => data)
-  .handler(async ({ data }): Promise<SimulationData> => {
-    const { simulationId } = data
-    console.log('simulationId', simulationId)
-    try {
-      const simulations = await postgres_db
-        .select()
-        .from(schema.simulations)
-        .where(eq(schema.simulations.id, simulationId))
-        .limit(1)
-
-      if (simulations.length === 0) {
-        return { simulation: null, ants: [], colonies: [], foodSources: [], pheromoneTrails: [] }
-      }
-
-      const simulation = simulations[0]
-
-      const colonies = await postgres_db
-        .select({
-          id: schema.colonies.id,
-          name: schema.colonies.name,
-          center_x: schema.colonies.center_x,
-          center_y: schema.colonies.center_y,
-          radius: schema.colonies.radius,
-          color_hue: schema.colonies.color_hue,
-          resources: schema.colonies.resources
-        })
-        .from(schema.colonies)
-        .where(eq(schema.colonies.simulation_id, simulationId))
-        .limit(100)
-
-      const ants = await postgres_db
-        .select({
-          id: schema.ants.id,
-          position_x: schema.ants.position_x,
-          position_y: schema.ants.position_y,
-          angle: schema.ants.angle,
-          colony_id: schema.ants.colony_id,
-          state: schema.ants.state,
-          ant_type: {
-            id: schema.ant_types.id,
-            name: schema.ant_types.name,
-            role: schema.ant_types.role,
-            color_hue: schema.ant_types.color_hue,
-            base_speed: schema.ant_types.base_speed,
-            base_strength: schema.ant_types.base_strength,
-            base_health: schema.ant_types.base_health,
-            carrying_capacity: schema.ant_types.carrying_capacity,
-          }
-        })
-        .from(schema.ants)
-        .innerJoin(schema.colonies, eq(schema.ants.colony_id, schema.colonies.id))
-        .innerJoin(schema.ant_types, eq(schema.ants.ant_type_id, schema.ant_types.id))
-        .where(eq(schema.colonies.simulation_id, simulationId))
-        .limit(500)
-
-      const foodSources = await postgres_db
-        .select({
-          id: schema.food_sources.id,
-          position_x: schema.food_sources.position_x,
-          position_y: schema.food_sources.position_y,
-          food_type: schema.food_sources.food_type,
-          amount: schema.food_sources.amount
-        })
-        .from(schema.food_sources)
-        .where(and(
-          eq(schema.food_sources.simulation_id, simulationId),
-          gt(schema.food_sources.amount, 0)
-        ))
-        .limit(100)
-
-      // Fetch pheromone trails for colonies in this simulation
-      const pheromoneTrails = await postgres_db
-        .select({
-          id: schema.pheromone_trails.id,
-          colony_id: schema.pheromone_trails.colony_id,
-          trail_type: schema.pheromone_trails.trail_type,
-          position_x: schema.pheromone_trails.position_x,
-          position_y: schema.pheromone_trails.position_y,
-          strength: schema.pheromone_trails.strength
-        })
-        .from(schema.pheromone_trails)
-        .innerJoin(schema.colonies, eq(schema.pheromone_trails.colony_id, schema.colonies.id))
-        .where(and(
-          eq(schema.colonies.simulation_id, simulationId),
-          gt(schema.pheromone_trails.strength, 0) // Only show trails with meaningful strength
-        ))
-        .limit(1000)
-
-      return {
-        simulation,
-        ants,
-        colonies,
-        foodSources,
-        pheromoneTrails
-      }
-    } catch (error) {
-      console.error('Database error:', error)
-      return { simulation: null, ants: [], colonies: [], foodSources: [], pheromoneTrails: [] }
+// Connection status indicator component
+const ConnectionStatus = ({ 
+  connectionState, 
+  error, 
+  lastUpdateTime,
+  onReconnect 
+}: { 
+  connectionState: string
+  error: string | null
+  lastUpdateTime: Date | null
+  onReconnect: () => void
+}) => {
+  const getStatusColor = () => {
+    switch (connectionState) {
+      case 'connected': return 'text-green-600'
+      case 'connecting': return 'text-yellow-600'
+      case 'disconnected': return 'text-gray-600'
+      case 'error': return 'text-red-600'
+      default: return 'text-gray-600'
     }
-  })
+  }
+
+  const getStatusIcon = () => {
+    switch (connectionState) {
+      case 'connected': return '🟢'
+      case 'connecting': return '🟡'
+      case 'disconnected': return '⚪'
+      case 'error': return '🔴'
+      default: return '⚪'
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className={getStatusColor()}>
+        {getStatusIcon()} {connectionState.charAt(0).toUpperCase() + connectionState.slice(1)}
+      </span>
+      {lastUpdateTime && (
+        <span className="text-gray-500">
+          Last update: {lastUpdateTime.toLocaleTimeString()}
+        </span>
+      )}
+      {error && (
+        <div className="flex items-center gap-2">
+          <span className="text-red-600 text-xs">{error}</span>
+          <Button onClick={onReconnect} variant="outline" size="sm">
+            Retry
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const SimulationField = ({ 
   simulation, 
@@ -352,51 +293,59 @@ const SimulationField = ({
 
 const SimulationPage = () => {
   const params = Route.useParams()
-  console.log('params', params)
   const simulationId = params.id
-  console.log('simulationId', simulationId)
 
-  const {
-    data,
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ['simulation-data', simulationId],
-    queryFn: () => getSimulationData({ data: { simulationId } }),
-    // Refresh simulation data every 0.05 seconds
-    refetchInterval: 50,
-  })
+  // Use WebSocket hook for real-time updates
+  const { 
+    data: wsData, 
+    connectionState, 
+    isLoading, 
+    error, 
+    connect,
+    lastUpdateTime 
+  } = useSimulationWebSocket(simulationId)
 
-  const hasSimulation = data?.simulation !== null && data?.simulation !== undefined
+  // Fallback to get simulation metadata if needed
+  // This could be enhanced to fetch initial simulation data when WebSocket is not available
+  // For now, we'll rely on the WebSocket FullState message
+
+  const hasSimulation = wsData !== null
 
   return (
     <div className="flex-1 space-y-4 p-4">
       <div className="flex items-center justify-between">
-        <div>
-          {hasSimulation && data?.simulation && (
+        <div className="space-y-1">
+          {hasSimulation && wsData && (
             <p className="text-sm text-muted-foreground">
-              {data.simulation.name} - Tick: {data.simulation.current_tick || 0} | 
-              Ants: {data.ants.length} | 
-              Colonies: {data.colonies.length} | 
-              Food Sources: {data.foodSources.length} |
-              Pheromone Trails: {data.pheromoneTrails.length}
+              Simulation {wsData.simulation_id} - Tick: {wsData.current_tick} | 
+              Ants: {wsData.ants.length} | 
+              Colonies: {wsData.colonies.length} | 
+              Food Sources: {wsData.foodSources.length} |
+              Pheromone Trails: {wsData.pheromoneTrails.length}
             </p>
           )}
-          {!hasSimulation && (
+          {!hasSimulation && !isLoading && (
             <p className="text-sm text-yellow-600">
               No active simulation found. Create one to get started!
             </p>
           )}
+          <ConnectionStatus 
+            connectionState={connectionState}
+            error={error}
+            lastUpdateTime={lastUpdateTime}
+            onReconnect={connect}
+          />
         </div>
         <div className="flex gap-2">
           <CreateSimulationButton />
           <DeleteSimulationButton />
           <Button 
-            onClick={() => refetch()} 
+            onClick={() => connect()} 
             variant="outline"
             size="sm"
+            disabled={connectionState === 'connecting'}
           >
-            Refresh
+            {connectionState === 'connecting' ? 'Connecting...' : 'Reconnect'}
           </Button>
           {hasSimulation && <AddAntsButton />}
           {hasSimulation && <AddFoodSourcesButton />}
@@ -407,69 +356,70 @@ const SimulationPage = () => {
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">Simulation Field</h3>
         <p className="text-sm text-muted-foreground">
-          White grid shows coordinates. Brown dots are ants (purple when carrying food), colored circles are colonies, green circles are food sources, small colored dots show food trails left by ants.
+          Real-time WebSocket updates. Colored dots are ants, colored circles are colonies, green circles are food sources, small colored dots show food trails.
         </p>
       </div>
 
-      {hasSimulation && data?.simulation && (
+      {hasSimulation && wsData && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">World Size</h4>
-            <p>{data.simulation.world_width} × {data.simulation.world_height}</p>
+            <h4 className="font-medium">Simulation ID</h4>
+            <p>{wsData.simulation_id}</p>
           </div>
           <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">Simulation Status</h4>
-            <p className={data.simulation.is_active ? "text-green-600" : "text-red-600"}>
-              {data.simulation.is_active ? "Active" : "Inactive"}
+            <h4 className="font-medium">Connection Status</h4>
+            <p className={connectionState === 'connected' ? "text-green-600" : "text-red-600"}>
+              {connectionState === 'connected' ? "Live Updates" : "Disconnected"}
             </p>
           </div>
           <div className="bg-gray-50 p-3 rounded">
             <h4 className="font-medium">Current Tick</h4>
-            <p>{(data.simulation.current_tick || 0).toLocaleString()}</p>
+            <p>{wsData.current_tick.toLocaleString()}</p>
           </div>
           <div className="bg-gray-50 p-3 rounded">
-            <h4 className="font-medium">Environment</h4>
-            <p className="capitalize">{data.simulation.season} • {data.simulation.weather_type}</p>
+            <h4 className="font-medium">Update Rate</h4>
+            <p>Real-time (500ms)</p>
           </div>
         </div>
       )}
       
       {isLoading ? (
         <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
-          <p className="text-gray-500">Loading simulation...</p>
+          <div className="text-center">
+            <p className="text-gray-500 mb-2">Connecting to simulation...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
+          </div>
         </div>
       ) : (
         <SimulationField 
-          simulation={data?.simulation || null}
-          ants={data?.ants || []}
-          colonies={data?.colonies || []}
-          foodSources={data?.foodSources || []}
-          pheromoneTrails={data?.pheromoneTrails || []}
+          simulation={hasSimulation ? { world_width: 800, world_height: 600 } as Simulation : null}
+          ants={wsData?.ants || []}
+          colonies={wsData?.colonies || []}
+          foodSources={wsData?.foodSources || []}
+          pheromoneTrails={wsData?.pheromoneTrails || []}
         />
       )}
       
-
-
-      {hasSimulation && data && (
+      {hasSimulation && wsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Ant Activity</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Wandering:</span>
-                <span>{data.ants.filter(ant => ant.state === 'wandering').length}</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'wandering').length}</span>
               </div>
               <div className="flex justify-between">
                 <span>Seeking Food:</span>
-                <span>{data.ants.filter(ant => ant.state === 'seeking_food').length}</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'seeking_food').length}</span>
               </div>
               <div className="flex justify-between">
                 <span>Carrying Food:</span>
-                <span>{data.ants.filter(ant => ant.state === 'carrying_food').length}</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'carrying_food').length}</span>
               </div>
               <div className="flex justify-between">
                 <span>Other States:</span>
-                <span>{data.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food'].includes(ant.state)).length}</span>
+                <span>{wsData.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food'].includes(ant.state)).length}</span>
               </div>
             </div>
           </div>
@@ -477,7 +427,7 @@ const SimulationPage = () => {
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Pheromone Trails</h4>
             <div className="space-y-2 text-sm">
-              {Object.entries(data.pheromoneTrails.reduce((acc, trail) => {
+              {Object.entries(wsData.pheromoneTrails.reduce((acc, trail) => {
                 if (!acc[trail.trail_type]) {
                   acc[trail.trail_type] = 0
                 }
@@ -489,7 +439,7 @@ const SimulationPage = () => {
                   <span>{count}</span>
                 </div>
               ))}
-              {data.pheromoneTrails.length === 0 && (
+              {wsData.pheromoneTrails.length === 0 && (
                 <p className="text-gray-500 text-xs">No active trails</p>
               )}
             </div>
@@ -498,7 +448,7 @@ const SimulationPage = () => {
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Ants</h4>
             <div className="space-y-3 text-sm">
-              {Object.entries(data.ants.reduce((acc, ant) => {
+              {Object.entries(wsData.ants.reduce((acc, ant) => {
                 const typeName = ant.ant_type.name;
                 if (!acc[typeName]) {
                   acc[typeName] = {
@@ -525,10 +475,10 @@ const SimulationPage = () => {
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Colonies</h4>
             <div className="space-y-2 text-sm">
-              {data.colonies.map((colony) => (
+              {wsData.colonies.map((colony) => (
                 <div key={colony.id} className="flex justify-between">
                   <span>{colony.name}:</span>
-                  <span>{data.ants.filter(ant => ant.colony_id === colony.id).length} ants</span>
+                  <span>{wsData.ants.filter(ant => ant.colony_id === colony.id).length} ants</span>
                 </div>
               ))}
             </div>
@@ -537,7 +487,7 @@ const SimulationPage = () => {
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Colony Resources</h4>
             <div className="space-y-3 text-sm">
-              {data.colonies.map((colony) => {
+              {wsData.colonies.map((colony) => {
                 const resources = (colony.resources as Record<string, number>) || {};
                 const totalResources = Object.values(resources).reduce((sum, value) => sum + (Number(value) || 0), 0);
                 return (
@@ -563,7 +513,7 @@ const SimulationPage = () => {
                   </div>
                 );
               })}
-              {data.colonies.length === 0 && (
+              {wsData.colonies.length === 0 && (
                 <p className="text-gray-500 text-xs">No colonies found</p>
               )}
             </div>
@@ -572,7 +522,7 @@ const SimulationPage = () => {
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Food Sources</h4>
             <div className="space-y-2 text-sm">
-              {data.foodSources.map((food) => (
+              {wsData.foodSources.map((food) => (
                 <div key={food.id} className="flex justify-between">
                   <span className="capitalize">{food.food_type}:</span>
                   <span>{Number(food.amount).toFixed(1)}</span>

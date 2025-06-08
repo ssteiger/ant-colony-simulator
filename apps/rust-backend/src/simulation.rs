@@ -2,6 +2,7 @@ use crate::cache::SimulationCache;
 use crate::database::DatabaseManager;
 use crate::managers::*;
 use crate::models::*;
+use crate::websocket::{WebSocketManager, SimulationMessage, create_delta_update};
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +11,7 @@ use tokio::time::{interval, Instant};
 pub struct AntColonySimulator {
     cache: Arc<SimulationCache>,
     db: Arc<DatabaseManager>,
+    websocket_manager: Arc<WebSocketManager>,
     ant_behavior_manager: AntBehaviorManager,
     colony_manager: ColonyManager,
     environment_manager: EnvironmentManager,
@@ -17,10 +19,15 @@ pub struct AntColonySimulator {
     is_running: bool,
     tick_interval: Duration,
     db_sync_interval: i64, // How often to sync to database (in ticks)
+    websocket_broadcast_interval: i64, // How often to broadcast via WebSocket (in ticks)
+    // Previous state for delta updates
+    previous_ants: Vec<FastAnt>,
+    previous_colonies: Vec<FastColony>,
+    previous_food_sources: Vec<FastFoodSource>,
 }
 
 impl AntColonySimulator {
-    pub async fn new(db_pool: sqlx::PgPool, simulation_id: i32) -> Result<Self> {
+    pub async fn new(db_pool: sqlx::PgPool, simulation_id: i32, websocket_manager: Arc<WebSocketManager>) -> Result<Self> {
         let db = Arc::new(DatabaseManager::new(db_pool));
         
         // Load simulation data from database
@@ -44,6 +51,7 @@ impl AntColonySimulator {
         Ok(Self {
             cache,
             db,
+            websocket_manager,
             ant_behavior_manager,
             colony_manager,
             environment_manager,
@@ -51,6 +59,10 @@ impl AntColonySimulator {
             is_running: false,
             tick_interval: Duration::from_millis(50), // 20 FPS - much faster than Node.js
             db_sync_interval: 100, // Sync to DB every 100 ticks (5 seconds at 20 FPS)
+            websocket_broadcast_interval: 10, // Broadcast every 10 ticks (0.5 seconds at 20 FPS)
+            previous_ants: Vec::new(),
+            previous_colonies: Vec::new(),
+            previous_food_sources: Vec::new(),
         })
     }
 
@@ -157,6 +169,13 @@ impl AntColonySimulator {
             if current_tick % self.db_sync_interval == 0 {
                 if let Err(e) = self.sync_to_database(current_tick).await {
                     tracing::error!("Failed to sync to database at tick {}: {}", current_tick, e);
+                }
+            }
+
+            // Periodic WebSocket broadcasting for real-time updates
+            if current_tick % self.websocket_broadcast_interval == 0 {
+                if let Err(e) = self.broadcast_websocket_update(current_tick).await {
+                    tracing::error!("Failed to broadcast WebSocket update at tick {}: {}", current_tick, e);
                 }
             }
 
@@ -276,6 +295,68 @@ impl AntColonySimulator {
             dirty_food_ids.len(),
             sync_duration.as_millis()
         );
+
+        Ok(())
+    }
+
+    async fn broadcast_websocket_update(&mut self, current_tick: i64) -> Result<()> {
+        // Only broadcast if there are connected clients
+        if self.websocket_manager.client_count().await == 0 {
+            return Ok(());
+        }
+
+        let broadcast_start = Instant::now();
+
+        // Get current simulation state
+        let current_ants: Vec<FastAnt> = self.cache.ants.iter().map(|entry| entry.clone()).collect();
+        let current_colonies: Vec<FastColony> = self.cache.colonies.iter().map(|entry| entry.clone()).collect();
+        let current_food_sources: Vec<FastFoodSource> = self.cache.food_sources.iter().map(|entry| entry.clone()).collect();
+        let current_pheromone_trails: Vec<FastPheromoneTrail> = self.cache.pheromone_trails.iter().map(|entry| entry.clone()).collect();
+
+        let message = if self.previous_ants.is_empty() {
+            // First broadcast - send full state
+            SimulationMessage::FullState {
+                simulation_id: self.cache.simulation_id,
+                tick: current_tick,
+                ants: current_ants.clone(),
+                colonies: current_colonies.clone(),
+                food_sources: current_food_sources.clone(),
+                pheromone_trails: current_pheromone_trails.clone(),
+            }
+        } else {
+            // Subsequent broadcasts - send only changes
+            create_delta_update(
+                self.cache.simulation_id,
+                current_tick,
+                &current_ants,
+                &current_colonies,
+                &current_food_sources,
+                &current_pheromone_trails,
+                &self.previous_ants,
+                &self.previous_colonies,
+                &self.previous_food_sources,
+            )
+        };
+
+        // Broadcast the message
+        match self.websocket_manager.broadcast(message) {
+            Ok(client_count) => {
+                let broadcast_duration = broadcast_start.elapsed();
+                tracing::debug!(
+                    "📡 WebSocket broadcast complete - {} clients notified ({}ms)",
+                    client_count,
+                    broadcast_duration.as_millis()
+                );
+            }
+            Err(e) => {
+                tracing::warn!("Failed to broadcast WebSocket message: {}", e);
+            }
+        }
+
+        // Update previous state for next delta comparison
+        self.previous_ants = current_ants;
+        self.previous_colonies = current_colonies;
+        self.previous_food_sources = current_food_sources;
 
         Ok(())
     }
