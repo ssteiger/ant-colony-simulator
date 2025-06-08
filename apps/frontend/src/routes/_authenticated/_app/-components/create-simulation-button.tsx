@@ -97,7 +97,8 @@ const createNewSimulation = createServerFn({ method: 'POST' })
       // Create initial ants with realistic distribution
       const initialAntCount = data.initialAntCount || 50 // Default to 50 ants
       
-      if (initialAntCount > 0) {
+      if (false) {
+      //if (initialAntCount > 0) {
         // Get all available ant types
         const antTypes = await postgres_db
           .select()

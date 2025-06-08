@@ -37,7 +37,7 @@ type RenderColony = {
   center_y: number;
   radius: number;
   color_hue: number;
-  resources: Record<string, number>;
+  resources: Record<string, number> | null;
 }
 
 type RenderFoodSource = {
@@ -57,9 +57,17 @@ type RenderPheromoneTrail = {
   strength: number;
 }
 
+type SimulationData = {
+  simulation: Simulation | null
+  ants: RenderAnt[]
+  colonies: RenderColony[]
+  foodSources: RenderFoodSource[]
+  pheromoneTrails: RenderPheromoneTrail[]
+}
+
 const getSimulationData = createServerFn({ method: 'GET' })
   .validator((data: { simulationId: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<SimulationData> => {
     const { simulationId } = data
     console.log('simulationId', simulationId)
     try {
@@ -533,7 +541,7 @@ const SimulationPage = () => {
             <h4 className="font-semibold mb-2">Colony Resources</h4>
             <div className="space-y-3 text-sm">
               {data.colonies.map((colony) => {
-                const resources = colony.resources as Record<string, number> || {};
+                const resources = (colony.resources as Record<string, number>) || {};
                 const totalResources = Object.values(resources).reduce((sum, value) => sum + (Number(value) || 0), 0);
                 return (
                   <div key={colony.id} className="border-l-4 pl-3" style={{ borderColor: `hsl(${colony.color_hue}, 60%, 50%)` }}>
@@ -575,7 +583,6 @@ const SimulationPage = () => {
               ))}
             </div>
           </div>
-
           
         </div>
       )}

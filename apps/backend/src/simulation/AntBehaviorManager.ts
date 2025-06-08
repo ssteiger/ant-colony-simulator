@@ -251,7 +251,7 @@ export class AntBehaviorManager {
       .single()
 
     if (!simulation) {
-      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
       return
     }
 
@@ -704,7 +704,7 @@ export class AntBehaviorManager {
       .single()
 
     if (!simulation) {
-      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
       return
     }
 
@@ -764,7 +764,7 @@ export class AntBehaviorManager {
       .single()
 
     if (!simulation) {
-      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
       return
     }
 
@@ -907,7 +907,7 @@ export class AntBehaviorManager {
       .single()
 
     if (!simulation) {
-      console.error(`🐜 Cannot find simulation ${this.simulationId} for world bounds`)
+      console.error(`🐜 Cannot find simulatio with id ${this.simulationId} for world bounds`)
       return
     }
 
