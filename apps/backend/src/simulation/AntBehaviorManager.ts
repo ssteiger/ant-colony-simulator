@@ -13,6 +13,17 @@ export class AntBehaviorManager {
   private supabase: SupabaseClient<Database>
   private simulationId: string | null = null
   private pheromoneManager: PheromoneManager
+  private antUpdates: Array<{
+    id: string;
+    position_x: number;
+    position_y: number;
+    angle: number;
+    state?: string;
+    target_x?: number;
+    target_y?: number;
+    target_id?: string;
+    target_type?: string;
+  }> = []
 
   constructor(supabase: SupabaseClient<Database>) {
     this.supabase = supabase
@@ -55,31 +66,50 @@ export class AntBehaviorManager {
 
     console.log(`🐜 AntBehaviorManager: Processing ${simulationAnts.length} ants at tick ${tick}`)
 
-    // Process each ant's behavior
+    // Process ants in parallel batches of 50 for better performance
+    const BATCH_SIZE = 50
+    const batches = []
+    for (let i = 0; i < simulationAnts.length; i += BATCH_SIZE) {
+      batches.push(simulationAnts.slice(i, i + BATCH_SIZE))
+    }
+
     let processedCount = 0
     let deadCount = 0
     let errorCount = 0
 
-    for (const ant of simulationAnts) {
-      try {
-        const result = await this.processAntBehavior(ant as AntWithRelations)
-        if (result === 'dead') {
-          deadCount++
+    // Process batches in parallel
+    for (const batch of batches) {
+      const batchResults = await Promise.allSettled(
+        batch.map(ant => this.processAntBehavior(ant as AntWithRelations))
+      )
+
+      // Count results
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled') {
+          if (result.value === 'dead') {
+            deadCount++
+          } else {
+            processedCount++
+          }
         } else {
-          processedCount++
+          errorCount++
+          console.error('🐜 AntBehaviorManager: Error processing ant:', result.reason)
         }
-      } catch (error) {
-        errorCount++
-        console.error(`🐜 AntBehaviorManager: Error processing ant ${ant.id}:`, error)
       }
     }
+
+    // Execute batch updates at the end of the tick for better performance
+    await this.batchUpdateAnts()
 
     console.log(`🐜 AntBehaviorManager: Tick ${tick} complete - Processed: ${processedCount}, Died: ${deadCount}, Errors: ${errorCount}`)
   }
 
   private async processAntBehavior(ant: AntWithRelations): Promise<string> {
     try {
-      console.log(`🐜 Processing ant ${ant.id}: state=${ant.state}, energy=${ant.energy}, position=(${ant.position_x}, ${ant.position_y})`)
+      // Only log individual ant details every 100 ticks to reduce noise
+      if (Math.random() < 0.01) { // Log 1% of ants randomly for debugging
+        console.log(`🐜 Processing ant ${ant.id}: state=${ant.state}, energy=${ant.energy}, position=(${ant.position_x}, ${ant.position_y})`)
+      }
       
       /*
       // Age the ant
@@ -107,7 +137,10 @@ export class AntBehaviorManager {
 
       // Determine ant's next action based on current state
       const nextAction = await this.determineAntAction(ant)
-      console.log(`🐜 Ant ${ant.id} determined action: ${nextAction}`)
+      // Only log actions occasionally to reduce noise
+      if (Math.random() < 0.01) {
+        console.log(`🐜 Ant ${ant.id} determined action: ${nextAction}`)
+      }
       
       // Execute the action
       await this.executeAntAction(ant, nextAction)
@@ -202,7 +235,10 @@ export class AntBehaviorManager {
   }
 
   private async executeAntAction(ant: AntWithRelations, action: string): Promise<void> {
-    console.log(`🐜 Executing action '${action}' for ant ${ant.id}`)
+    // Only log actions occasionally to reduce noise
+    if (Math.random() < 0.01) {
+      console.log(`🐜 Executing action '${action}' for ant ${ant.id}`)
+    }
     
     switch (action) {
       case 'wander':
@@ -966,5 +1002,54 @@ export class AntBehaviorManager {
         last_updated: new Date().toISOString()
       })
       .eq('id', ant.id)
+  }
+
+  private async batchUpdateAnts(): Promise<void> {
+    if (this.antUpdates.length === 0) return
+
+    try {
+      // Execute batch updates in parallel
+      const updatePromises = this.antUpdates.map(update => 
+        this.supabase
+          .from('ants')
+          .update({
+            position_x: update.position_x,
+            position_y: update.position_y,
+            angle: update.angle,
+            ...(update.state && { state: update.state }),
+            ...(update.target_x !== undefined && { target_x: update.target_x }),
+            ...(update.target_y !== undefined && { target_y: update.target_y }),
+            ...(update.target_id && { target_id: update.target_id }),
+            ...(update.target_type && { target_type: update.target_type }),
+            last_updated: new Date().toISOString()
+          })
+          .eq('id', update.id)
+      )
+
+      await Promise.all(updatePromises)
+      
+      if (this.antUpdates.length > 50) {
+        console.log(`🐜 AntBehaviorManager: Bulk updated ${this.antUpdates.length} ants`)
+      }
+    } catch (error) {
+      console.error('🐜 AntBehaviorManager: Failed to bulk update ants:', error)
+    }
+
+    // Clear the updates array
+    this.antUpdates = []
+  }
+
+  private queueAntUpdate(update: {
+    id: string;
+    position_x: number;
+    position_y: number;
+    angle: number;
+    state?: string;
+    target_x?: number;
+    target_y?: number;
+    target_id?: string;
+    target_type?: string;
+  }): void {
+    this.antUpdates.push(update)
   }
 } 

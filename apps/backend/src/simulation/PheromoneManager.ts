@@ -40,6 +40,8 @@ export class PheromoneManager {
   }
 
   private async decayPheromoneTrails(): Promise<number> {
+    console.log('🔬 PheromoneManager: Decaying pheromone trails with bulk update')
+    
     // Get all active pheromone trails
     const { data: trails } = await this.supabase
       .from('pheromone_trails')
@@ -52,24 +54,29 @@ export class PheromoneManager {
     }
 
     console.log(`🔬 PheromoneManager: Decaying ${trails.length} pheromone trails`)
-    let decayedCount = 0
+    
+    // Prepare bulk updates
+    const updates = trails
+      .map(trail => ({
+        ...trail,
+        strength: Math.max(0, trail.strength - trail.decay_rate)
+      }))
+      .filter(trail => trail.strength > 0) // Only update trails that still have strength
 
-    // Update each trail's strength
-    for (const trail of trails) {
-      const newStrength = Math.max(0, trail.strength - trail.decay_rate)
-      
-      if (newStrength !== trail.strength) {
-        await this.supabase
-          .from('pheromone_trails')
-          .update({ strength: newStrength })
-          .eq('id', trail.id)
-        
-        decayedCount++
+    // Execute bulk update
+    if (updates.length > 0) {
+      const { error } = await this.supabase
+        .from('pheromone_trails')
+        .upsert(updates)
+
+      if (error) {
+        console.error('🔬 PheromoneManager: Error in bulk decay:', error)
+        return 0
       }
     }
 
-    console.log(`🔬 PheromoneManager: ✅ Decayed ${decayedCount} trails`)
-    return decayedCount
+    console.log(`🔬 PheromoneManager: ✅ Bulk updated ${updates.length} trails`)
+    return updates.length
   }
 
   private async cleanupWeakTrails(): Promise<number> {

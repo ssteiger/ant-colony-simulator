@@ -33,7 +33,7 @@ export class EnvironmentManager {
     }
 
     // Spawn new food sources occasionally
-    if (tick % 500 === 0) {
+    if (tick % 100 === 0) {
       console.log(`🌍 EnvironmentManager: Spawning new food sources at tick ${tick}`)
       await this.spawnNewFoodSources()
     }

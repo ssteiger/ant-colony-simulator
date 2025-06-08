@@ -96,7 +96,13 @@ export class AntColonySimulator {
     }
   }
 
-  async getSimulationStats(): Promise<SimulationStats> {
+  async getSimulationStats(): Promise<{
+    total_ants: number;
+    active_colonies: number;
+    total_food_collected: number;
+    pheromone_trail_count: number;
+    current_tick: number;
+  }> {
     if (!this.currentSimulationId) {
       throw new Error('No active simulation')
     }
@@ -141,11 +147,11 @@ export class AntColonySimulator {
     }, 0) || 0
 
     const stats = {
-      totalAnts: simulationAnts.length,
-      activeColonies: coloniesResult.data?.length || 0,
-      totalFoodCollected,
-      activePheromoneTrails: pheromoneResult.data?.length || 0,
-      currentTick: simulationResult.data?.current_tick || 0
+      total_ants: simulationAnts.length,
+      active_colonies: coloniesResult.data?.length || 0,
+      total_food_collected: totalFoodCollected,
+      pheromone_trail_count: pheromoneResult.data?.length || 0,
+      current_tick: simulationResult.data?.current_tick || 0
     }
 
     console.log('🎮 AntColonySimulator: Statistics gathered:', stats)
@@ -216,7 +222,7 @@ export class AntColonySimulator {
       if (tick % 10 === 0) {
         try {
           const stats = await this.getSimulationStats()
-          console.log(`🎮 AntColonySimulator: 📊 Tick ${tick} Stats - Ants: ${stats.totalAnts}, Colonies: ${stats.activeColonies}, Food: ${stats.totalFoodCollected}, Pheromones: ${stats.activePheromoneTrails}`)
+          console.log(`🎮 AntColonySimulator: 📊 Tick ${tick} Stats - Ants: ${stats.total_ants}, Colonies: ${stats.active_colonies}, Food: ${stats.total_food_collected}, Pheromones: ${stats.pheromone_trail_count}`)
         } catch (error) {
           console.warn(`🎮 AntColonySimulator: Could not gather stats at tick ${tick}:`, error)
         }
