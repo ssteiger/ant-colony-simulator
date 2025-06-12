@@ -307,17 +307,14 @@ const SimulationField = ({
         {/* Ants */}
         {ants.map((ant) => {
           const colony = colonies.find(c => c.id === ant.colony_id);
-          // Use ant type color hue if available, otherwise fall back to brown
-          const antColor = ant.state === 'carrying_food' 
-            ? `hsl(${ant.ant_type.color_hue}, 70%, 60%)` 
-            : `hsl(${ant.ant_type.color_hue}, 60%, 40%)`;
           
           const imageSize = 8; // Size of the ant image
           
           // Calculate precise positions, preserving decimal precision for smooth movement
           const antX = constrainPosition(ant.position_x, fieldWidth);
           const antY = constrainPosition(ant.position_y, fieldHeight);
-          const antAngle = Number(ant.angle); // Preserve precise angle for smooth rotation
+          // Convert angle from radians to degrees for SVG rotation
+          const antAngleDegrees = (Number(ant.angle) * 180) / Math.PI;
           
           return (
             <g key={ant.id}>
@@ -328,7 +325,7 @@ const SimulationField = ({
                 y={antY - imageSize / 2}
                 width={imageSize}
                 height={imageSize}
-                transform={`rotate(${antAngle} ${antX} ${antY})`}
+                transform={`rotate(${antAngleDegrees} ${antX} ${antY})`}
                 className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
                 style={{
                   // Enable hardware acceleration for smoother rendering
@@ -336,7 +333,7 @@ const SimulationField = ({
                   transformOrigin: 'center'
                 }}
               >
-                <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${antAngle.toFixed(2)}° | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
+                <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${antAngleDegrees.toFixed(2)}° | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
               </image>
             </g>
           );

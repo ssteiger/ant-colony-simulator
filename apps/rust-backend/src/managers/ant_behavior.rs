@@ -296,15 +296,16 @@ impl AntBehaviorManager {
             
             if distance > 0.0 {
                 let normalized_direction = (direction.0 / distance, direction.1 / distance);
+                let new_angle = normalized_direction.1.atan2(normalized_direction.0);
                 let new_position = self.move_with_bounds(
                     ant.position,
-                    normalized_direction.1.atan2(normalized_direction.0),
+                    new_angle,
                     ant.speed,
                 );
 
                 self.cache.update_ant(ant.id, |a| {
                     a.position = new_position;
-                    a.angle = normalized_direction.1.atan2(normalized_direction.0);
+                    a.angle = new_angle;
                     a.state = AntState::SeekingFood;
                     a.target = Some(Target::Food(food_id));
                 });
@@ -444,15 +445,16 @@ impl AntBehaviorManager {
                 
                 if distance > 0.0 {
                     let normalized_direction = (direction.0 / distance, direction.1 / distance);
+                    let new_angle = normalized_direction.1.atan2(normalized_direction.0);
                     let new_position = self.move_with_bounds(
                         ant.position,
-                        normalized_direction.1.atan2(normalized_direction.0),
+                        new_angle,
                         ant.speed,
                     );
 
                     self.cache.update_ant(ant.id, |a| {
                         a.position = new_position;
-                        a.angle = normalized_direction.1.atan2(normalized_direction.0);
+                        a.angle = new_angle;
                         a.state = AntState::ReturningToColony;
                     });
 
@@ -563,7 +565,7 @@ impl AntBehaviorManager {
             (0.0, 0.0)
         } else {
             (
-                total_influence_x.atan2(total_influence_y),
+                total_influence_y.atan2(total_influence_x),
                 total_strength,
             )
         }
