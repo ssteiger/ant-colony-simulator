@@ -217,6 +217,8 @@ impl AntBehaviorManager {
             new_angle += 2.0 * std::f32::consts::PI;
         }
 
+        tracing::info!("Ant {} moved from {:?} to {:?}", ant.id, ant.position, new_position);
+
         // Update ant
         self.cache.update_ant(ant.id, |ant| {
             ant.position = new_position;

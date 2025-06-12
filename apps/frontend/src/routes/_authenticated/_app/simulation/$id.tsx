@@ -181,6 +181,13 @@ const SimulationField = ({
     return acc
   }, {} as Record<string, RenderPheromoneTrail[]>)
 
+  // Helper function to safely convert and constrain positions while preserving precision
+  const constrainPosition = (value: number, max: number): number => {
+    const numValue = Number(value)
+    // Only constrain if actually outside bounds, preserving precision within bounds
+    return numValue < 0 ? 0 : numValue > max ? max : numValue
+  }
+
   return (
     <div className="relative border border-gray-300 rounded-lg overflow-hidden" style={{ width: fieldWidth, height: fieldHeight }}>
       {/* Grid background */}
@@ -228,16 +235,19 @@ const SimulationField = ({
                 ? `hsl(${colony.color_hue}, 80%, 60%)`
                 : '#059669'; // green for food trails
 
+              const trailX = constrainPosition(trail.position_x, fieldWidth);
+              const trailY = constrainPosition(trail.position_y, fieldHeight);
+
               return (
                 <circle
                   key={trail.id}
-                  cx={Math.min(Number(trail.position_x), fieldWidth)}
-                  cy={Math.min(Number(trail.position_y), fieldHeight)}
+                  cx={trailX}
+                  cy={trailY}
                   r={2} // Fixed small size for path markers
                   fill={trailColor}
                   opacity={opacity}
                 >
-                  <title>{`Food Trail | Strength: ${Number(trail.strength).toFixed(0)} | Position: (${trail.position_x}, ${trail.position_y}) | Colony: ${colony?.name || 'Unknown'}`}</title>
+                  <title>{`Food Trail | Strength: ${Number(trail.strength).toFixed(1)} | Position: (${trail.position_x.toFixed(2)}, ${trail.position_y.toFixed(2)}) | Colony: ${colony?.name || 'Unknown'}`}</title>
                 </circle>
               );
             })}
@@ -245,42 +255,50 @@ const SimulationField = ({
         ))}
         
         {/* Food sources */}
-        {foodSources.map((food) => (
-          <circle
-            key={food.id}
-            cx={Math.min(Number(food.position_x), fieldWidth)}
-            cy={Math.min(Number(food.position_y), fieldHeight)}
-            r={Math.max(3, Math.min(Number(food.amount) / 10, 10))}
-            fill="#10b981"
-            opacity={0.7}
-          >
-            <title>{`Food Source: ${food.food_type} | Amount: ${Number(food.amount).toFixed(1)} | Position: (${food.position_x}, ${food.position_y})`}</title>
-          </circle>
-        ))}
+        {foodSources.map((food) => {
+          const foodX = constrainPosition(food.position_x, fieldWidth);
+          const foodY = constrainPosition(food.position_y, fieldHeight);
+          
+          return (
+            <circle
+              key={food.id}
+              cx={foodX}
+              cy={foodY}
+              r={Math.max(3, Math.min(Number(food.amount) / 10, 10))}
+              fill="#10b981"
+              opacity={0.7}
+            >
+              <title>{`Food Source: ${food.food_type} | Amount: ${Number(food.amount).toFixed(1)} | Position: (${food.position_x.toFixed(2)}, ${food.position_y.toFixed(2)})`}</title>
+            </circle>
+          );
+        })}
         
         {/* Colonies */}
         {colonies.map((colony) => {
           const colonyAnts = ants.filter(ant => ant.colony_id === colony.id);
+          const colonyX = constrainPosition(colony.center_x, fieldWidth);
+          const colonyY = constrainPosition(colony.center_y, fieldHeight);
+          
           return (
             <g key={colony.id}>
               {/* Colony territory circle */}
               <circle
-                cx={Math.min(Number(colony.center_x), fieldWidth)}
-                cy={Math.min(Number(colony.center_y), fieldHeight)}
+                cx={colonyX}
+                cy={colonyY}
                 r={Math.min(Number(colony.radius), 50)}
                 fill={`hsl(${colony.color_hue}, 50%, 80%)`}
                 opacity={0.3}
               >
-                <title>{`${colony.name} Territory | Center: (${colony.center_x}, ${colony.center_y}) | Radius: ${colony.radius} | Ants: ${colonyAnts.length}`}</title>
+                <title>{`${colony.name} Territory | Center: (${colony.center_x.toFixed(2)}, ${colony.center_y.toFixed(2)}) | Radius: ${colony.radius} | Ants: ${colonyAnts.length}`}</title>
               </circle>
               {/* Colony center */}
               <circle
-                cx={Math.min(Number(colony.center_x), fieldWidth)}
-                cy={Math.min(Number(colony.center_y), fieldHeight)}
+                cx={colonyX}
+                cy={colonyY}
                 r={5}
                 fill={`hsl(${colony.color_hue}, 70%, 50%)`}
               >
-                <title>{`${colony.name} Center | Position: (${colony.center_x}, ${colony.center_y}) | Ants: ${colonyAnts.length}`}</title>
+                <title>{`${colony.name} Center | Position: (${colony.center_x.toFixed(2)}, ${colony.center_y.toFixed(2)}) | Ants: ${colonyAnts.length}`}</title>
               </circle>
             </g>
           );
@@ -296,28 +314,29 @@ const SimulationField = ({
           
           const imageSize = 8; // Size of the ant image
           
+          // Calculate precise positions, preserving decimal precision for smooth movement
+          const antX = constrainPosition(ant.position_x, fieldWidth);
+          const antY = constrainPosition(ant.position_y, fieldHeight);
+          const antAngle = Number(ant.angle); // Preserve precise angle for smooth rotation
+          
           return (
             <g key={ant.id}>
-              {/* Colored background circle for ant type identification */}
-              <circle
-                cx={Math.min(Number(ant.position_x), fieldWidth)}
-                cy={Math.min(Number(ant.position_y), fieldHeight)}
-                r={imageSize / 2 + 1}
-                fill={antColor}
-                opacity={0.3}
-                className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
-              />
               {/* Ant image */}
               <image
                 href="/ant_sprite.png"
-                x={Math.min(Number(ant.position_x), fieldWidth) - imageSize / 2}
-                y={Math.min(Number(ant.position_y), fieldHeight) - imageSize / 2}
+                x={antX - imageSize / 2}
+                y={antY - imageSize / 2}
                 width={imageSize}
                 height={imageSize}
-                transform={`rotate(${ant.angle} ${Math.min(Number(ant.position_x), fieldWidth)} ${Math.min(Number(ant.position_y), fieldHeight)})`}
+                transform={`rotate(${antAngle} ${antX} ${antY})`}
                 className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
+                style={{
+                  // Enable hardware acceleration for smoother rendering
+                  willChange: 'transform',
+                  transformOrigin: 'center'
+                }}
               >
-                <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x}, ${ant.position_y}) | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
+                <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${antAngle.toFixed(2)}° | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
               </image>
             </g>
           );

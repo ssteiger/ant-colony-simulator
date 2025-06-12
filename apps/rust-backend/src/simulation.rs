@@ -64,7 +64,7 @@ impl AntColonySimulator {
             is_running: false,
             tick_interval: Duration::from_millis(50), // 20 FPS - much faster than Node.js
             db_sync_interval: 100, // Sync to DB every 100 ticks (5 seconds at 20 FPS)
-            websocket_broadcast_interval: 10, // Broadcast every 10 ticks (0.5 seconds at 20 FPS)
+            websocket_broadcast_interval: 1, // Broadcast every tick (0.05 seconds at 20 FPS)
             previous_ants: Vec::new(),
             previous_colonies: Vec::new(),
             previous_food_sources: Vec::new(),
