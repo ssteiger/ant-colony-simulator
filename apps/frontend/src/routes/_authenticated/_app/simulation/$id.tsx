@@ -184,8 +184,10 @@ const SimulationField = ({
   // Helper function to safely convert and constrain positions while preserving precision
   const constrainPosition = (value: number, max: number): number => {
     const numValue = Number(value)
-    // Only constrain if actually outside bounds, preserving precision within bounds
-    return numValue < 0 ? 0 : numValue > max ? max : numValue
+    // Scale the value to fit within the display bounds
+    const scaledValue = (numValue / simulation.world_width) * fieldWidth
+    // Constrain to display bounds
+    return scaledValue < 0 ? 0 : scaledValue > max ? max : scaledValue
   }
 
   return (

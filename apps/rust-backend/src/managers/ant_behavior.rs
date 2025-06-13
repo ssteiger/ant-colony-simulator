@@ -443,7 +443,7 @@ impl AntBehaviorManager {
     fn move_ant_towards_colony(&self, ant: &FastAnt, current_tick: i64) -> anyhow::Result<()> {
         if let Some(colony) = self.cache.get_colony(&ant.colony_id) {
             let distance_to_colony = self.distance(ant.position, colony.center);
-            tracing::info!("🐜 Ant {} is moving towards colony at distance {}", ant.id, distance_to_colony);
+            tracing::info!("🐜 Ant {} is moving towards colony at distance {} from position ({}, {})", ant.id, distance_to_colony, ant.position.0, ant.position.1);
             
             if distance_to_colony < colony.radius {
                 tracing::info!("🐜 Ant {} reached colony and is depositing food", ant.id);
