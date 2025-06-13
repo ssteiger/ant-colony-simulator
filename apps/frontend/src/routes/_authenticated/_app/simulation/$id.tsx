@@ -502,8 +502,28 @@ const SimulationPage = () => {
                 <span>{wsData.ants.filter(ant => ant.state === 'carrying_food').length}</span>
               </div>
               <div className="flex justify-between">
+                <span>Returning to Colony:</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'returning_to_colony').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Following:</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'following').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Exploring:</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'exploring').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Patrolling:</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'patrolling').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Dead:</span>
+                <span>{wsData.ants.filter(ant => ant.state === 'dead').length}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Other States:</span>
-                <span>{wsData.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food'].includes(ant.state)).length}</span>
+                <span>{wsData.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food', 'returning_to_colony', 'following', 'exploring', 'patrolling', 'dead'].includes(ant.state)).length}</span>
               </div>
             </div>
           </div>

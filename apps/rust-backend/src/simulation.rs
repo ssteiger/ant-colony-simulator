@@ -192,17 +192,23 @@ impl AntColonySimulator {
 
                     let tick_duration = tick_start.elapsed();
                     
-                    // Log progress every 100 ticks
-                    if current_tick % 100 == 0 {
+                    // Log progress every 10 ticks
+                    if current_tick % 10 == 0 {
                         let stats = self.cache.get_stats();
+                        let colony_positions: Vec<String> = self.cache.colonies
+                            .iter()
+                            .map(|colony| format!("Colony {}: ({:.1}, {:.1})", colony.id, colony.center.0, colony.center.1))
+                            .collect();
+                        
                         tracing::info!(
-                            "📊 Tick {} - Ants: {}, Colonies: {}, Food: {}, Pheromones: {} ({}ms)",
+                            "📊 Tick {} - Ants: {}, Colonies: {}, Food: {}, Pheromones: {} ({}ms)\nColony Positions:\n{}",
                             current_tick,
                             stats.total_ants,
                             stats.active_colonies,
                             stats.total_food_collected,
                             stats.pheromone_trail_count,
-                            tick_duration.as_millis()
+                            tick_duration.as_millis(),
+                            colony_positions.join("\n")
                         );
                     }
 

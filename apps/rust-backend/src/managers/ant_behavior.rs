@@ -62,6 +62,7 @@ impl AntBehaviorManager {
         let new_energy = (ant.energy - 1).max(0);
         if new_energy <= 0 {
             self.kill_ant(ant.id, current_tick);
+            tracing::info!("🐜 Ant {} has died", ant.id);
             return Ok(());
         }
 
@@ -87,9 +88,11 @@ impl AntBehaviorManager {
                     .find(|food| food.amount > 0);
 
                 if let Some(food) = nearby_food {
+                    tracing::info!("🐜 Ant {} found food {}", ant.id, food.id);
                     // Role-based food prioritization
                     match ant_type.role.as_str() {
                         "soldier" => {
+                            tracing::info!("🐜 Ant {} is a soldier", ant.id);
                             // Soldiers only collect very nearby food
                             let distance = self.distance(ant.position, food.position);
                             if distance < 20.0 {
@@ -97,6 +100,7 @@ impl AntBehaviorManager {
                             }
                         }
                         _ => {
+                            tracing::info!("🐜 Ant {} is a {} and is seeking food", ant.id, ant_type.role);
                             return Ok(AntAction::SeekFood(food.id));
                         }
                     }
@@ -122,13 +126,20 @@ impl AntBehaviorManager {
                 };
 
                 if strength > follow_threshold {
+                    tracing::info!("🐜 Ant {} is following pheromone", ant.id);
                     return Ok(AntAction::FollowPheromone(direction, strength));
                 }
 
                 // Role-specific default behavior
                 match ant_type.role.as_str() {
-                    "scout" => Ok(AntAction::Explore),
-                    "soldier" => Ok(AntAction::Patrol),
+                    "scout" => {
+                        tracing::info!("🐜 Ant {} is a scout and is exploring", ant.id);
+                        Ok(AntAction::Explore)
+                    }
+                    "soldier" => {
+                        tracing::info!("🐜 Ant {} is a soldier and is patrolling", ant.id);
+                        Ok(AntAction::Patrol)
+                    }
                     _ => Ok(AntAction::Wander),
                 }
             }
@@ -217,12 +228,13 @@ impl AntBehaviorManager {
             new_angle += 2.0 * std::f32::consts::PI;
         }
 
-        tracing::info!("Ant {} moved from {:?} to {:?}", ant.id, ant.position, new_position);
+        //tracing::info!("Ant {} moved from {:?} to {:?}", ant.id, ant.position, new_position);
 
         // Update ant
         self.cache.update_ant(ant.id, |ant| {
             ant.position = new_position;
             ant.angle = new_angle;
+            ant.state = AntState::Wandering;  // Explicitly set state
             ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
         });
 
@@ -431,8 +443,10 @@ impl AntBehaviorManager {
     fn move_ant_towards_colony(&self, ant: &FastAnt, current_tick: i64) -> anyhow::Result<()> {
         if let Some(colony) = self.cache.get_colony(&ant.colony_id) {
             let distance_to_colony = self.distance(ant.position, colony.center);
+            tracing::info!("🐜 Ant {} is moving towards colony at distance {}", ant.id, distance_to_colony);
             
             if distance_to_colony < colony.radius {
+                tracing::info!("🐜 Ant {} reached colony and is depositing food", ant.id);
                 // Reached colony, deposit food
                 self.deposit_food(ant, current_tick)?;
             } else {
@@ -460,6 +474,7 @@ impl AntBehaviorManager {
 
                     // Create home pheromone trail when carrying food
                     if ant.state == AntState::CarryingFood {
+                        tracing::info!("🐜 Ant {} is carrying food and is creating home pheromone trail", ant.id);
                         self.create_pheromone_trail(
                             ant.position,
                             ant.colony_id,

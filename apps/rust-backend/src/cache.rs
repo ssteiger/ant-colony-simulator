@@ -114,6 +114,7 @@ impl SimulationCache {
     // Food source operations
     pub fn insert_food_source(&self, food: FastFoodSource) {
         let id = food.id;
+        tracing::info!("🍎 Inserting food source {}", id);
         self.food_sources.insert(id, food);
         self.dirty_food_sources.insert(id, true);
     }
@@ -123,6 +124,7 @@ impl SimulationCache {
         F: FnOnce(&mut FastFoodSource),
     {
         if let Some(mut food) = self.food_sources.get_mut(&id) {
+            tracing::info!("🍎 Updating food source {}", id);
             updater(&mut food);
             self.dirty_food_sources.insert(id, true);
         }
@@ -142,10 +144,12 @@ impl SimulationCache {
 
     // Pheromone operations
     pub fn insert_pheromone_trail(&self, trail: FastPheromoneTrail) {
+        tracing::info!("💨 Inserting pheromone trail {}", trail.id);
         self.pheromone_trails.insert(trail.id, trail);
     }
 
     pub fn get_pheromone_trails_near_position(&self, position: (f32, f32), radius: f32) -> Vec<FastPheromoneTrail> {
+        //tracing::info!("💨 Getting pheromone trails near {:?}", position);
         self.pheromone_trails
             .iter()
             .filter(|entry| {

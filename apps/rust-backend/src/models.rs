@@ -163,6 +163,7 @@ pub struct FastPheromoneTrail {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AntState {
     Wandering,
     SeekingFood,
