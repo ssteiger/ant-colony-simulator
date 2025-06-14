@@ -313,7 +313,7 @@ const SimulationField = ({
         {ants.map((ant) => (
           <g
             key={ant.id}
-            transform={`translate(${ant.position_x}, ${ant.position_y}) rotate(${ant.angle})`}
+            transform={`translate(${ant.position_x}, ${ant.position_y}) rotate(${ant.angle * (180 / Math.PI)} 0 0)`}
           >
             <image
               href="/ant_sprite.png"
