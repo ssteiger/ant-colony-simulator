@@ -529,8 +529,8 @@ impl AntBehaviorManager {
             trail_type,
             position,
             strength,
-            decay_rate: 0.01,
-            expires_at: 1000, // 1000 ticks from now
+            decay_rate: 0.005, // Reduced from 0.01 to 0.005 (0.5% per tick)
+            expires_at: 2000, // Increased from 1000 to 2000 ticks
             target_food_id,
         };
 

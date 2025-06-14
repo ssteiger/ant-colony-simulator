@@ -237,27 +237,40 @@ const SimulationField = ({
             {trails.map((trail) => {
               const colony = colonies.find(c => c.id === trail.colony_id);
               
-              // Only render food trails as path markers
-              if (trailType !== 'food') {
-                return null;
+              // Get color based on trail type
+              let trailColor: string;
+              switch (trail.trail_type) {
+                case 'food':
+                  trailColor = colony ? `hsl(${colony.color_hue}, 80%, 60%)` : '#059669'; // green for food trails
+                  break;
+                case 'danger':
+                  trailColor = '#dc2626'; // red for danger
+                  break;
+                case 'home':
+                  trailColor = colony ? `hsl(${colony.color_hue}, 70%, 40%)` : '#4b5563'; // darker colony color for home
+                  break;
+                case 'exploration':
+                  trailColor = '#6366f1'; // indigo for exploration
+                  break;
+                default:
+                  trailColor = '#6b7280'; // gray for unknown types
               }
               
-              // Simple path marker - small dot with fade based on strength
-              const opacity = Math.max(0.3, Math.min(0.9, trail.strength / 100));
-              const trailColor = colony 
-                ? `hsl(${colony.color_hue}, 80%, 60%)`
-                : '#059669'; // green for food trails
+              // Calculate size and opacity based on strength
+              const baseSize = 3; // Increased from 2
+              const size = baseSize + (trail.strength / 50); // Size increases with strength
+              const opacity = Math.max(0.2, Math.min(0.8, trail.strength / 100)); // Adjusted opacity range
 
               return (
                 <circle
                   key={trail.id}
                   cx={trail.position_x}
                   cy={trail.position_y}
-                  r={2} // Fixed small size for path markers
+                  r={size}
                   fill={trailColor}
                   opacity={opacity}
                 >
-                  <title>{`Food Trail | Strength: ${Number(trail.strength).toFixed(1)} | Position: (${trail.position_x.toFixed(2)}, ${trail.position_y.toFixed(2)}) | Colony: ${colony?.name || 'Unknown'}`}</title>
+                  <title>{`${trail.trail_type.charAt(0).toUpperCase() + trail.trail_type.slice(1)} Trail | Strength: ${Number(trail.strength).toFixed(1)} | Position: (${trail.position_x.toFixed(2)}, ${trail.position_y.toFixed(2)}) | Colony: ${colony?.name || 'Unknown'}`}</title>
                 </circle>
               );
             })}
