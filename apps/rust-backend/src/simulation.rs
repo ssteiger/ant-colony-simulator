@@ -466,14 +466,14 @@ impl AntColonySimulator {
 
     fn parse_ant_state(state_str: &str) -> AntState {
         match state_str {
-            "wandering" => AntState::Wandering,
-            "seeking_food" => AntState::SeekingFood,
-            "carrying_food" => AntState::CarryingFood,
-            "following" => AntState::Following,
-            "exploring" => AntState::Exploring,
-            "patrolling" => AntState::Patrolling,
-            "dead" => AntState::Dead,
-            _ => AntState::Wandering,
+            "wandering" => AntState::wandering,
+            "seeking_food" => AntState::seeking_food,
+            "carrying_food" => AntState::carrying_food,
+            "following" => AntState::following,
+            "exploring" => AntState::exploring,
+            "patrolling" => AntState::patrolling,
+            "dead" => AntState::dead,
+            _ => AntState::wandering,
         }
     }
 
@@ -484,11 +484,11 @@ impl AntColonySimulator {
         target_y: Option<i32>,
     ) -> Option<Target> {
         match target_type.as_deref() {
-            Some("food_source") => target_id.map(Target::Food),
-            Some("colony") => target_id.map(Target::Colony),
+            Some("food_source") => target_id.map(Target::food),
+            Some("colony") => target_id.map(Target::colony),
             Some("position") => {
                 if let (Some(x), Some(y)) = (target_x, target_y) {
-                    Some(Target::Position(x as f32, y as f32))
+                    Some(Target::position(x as f32, y as f32))
                 } else {
                     None
                 }

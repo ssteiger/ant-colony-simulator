@@ -20,7 +20,7 @@ impl AntBehaviorManager {
         // Get all living ants efficiently
         let living_ants: Vec<_> = self.cache.ants
             .iter()
-            .filter(|entry| entry.state != AntState::Dead)
+            .filter(|entry| entry.state != AntState::dead)
             .map(|entry| (entry.key().clone(), entry.value().clone()))
             .collect();
 
@@ -81,7 +81,7 @@ impl AntBehaviorManager {
             .ok_or_else(|| anyhow::anyhow!("Ant type {} not found", ant.ant_type_id))?;
 
         match ant.state {
-            AntState::Wandering => {
+            AntState::wandering => {
                 // Look for nearby food first
                 let nearby_food = self.cache.get_food_sources_near_position(ant.position, 50.0)
                     .into_iter()
@@ -144,9 +144,9 @@ impl AntBehaviorManager {
                 }
             }
 
-            AntState::SeekingFood => {
+            AntState::seeking_food => {
                 if let Some(target) = &ant.target {
-                    if let Target::Food(food_id) = target {
+                    if let Target::food(food_id) = target {
                         // Check if we reached the food
                         if let Some(food) = self.cache.food_sources.get(food_id).map(|entry| entry.clone()) {
                             let distance = self.distance(ant.position, food.position);
@@ -162,7 +162,7 @@ impl AntBehaviorManager {
                 Ok(AntAction::Wander)
             }
 
-            AntState::CarryingFood => {
+            AntState::carrying_food => {
                 Ok(AntAction::ReturnToColony)
             }
 
@@ -230,7 +230,7 @@ impl AntBehaviorManager {
         self.cache.update_ant(ant.id, |ant| {
             ant.position = new_position;
             ant.angle = new_angle;
-            ant.state = AntState::Wandering;  // Explicitly set state
+            ant.state = AntState::wandering;  // Explicitly set state
             ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
         });
 
@@ -257,7 +257,7 @@ impl AntBehaviorManager {
         let new_position = self.move_with_bounds(ant.position, new_angle, move_distance);
 
         // Lay weak exploration pheromone trail
-        self.create_pheromone_trail(ant.position, ant.colony_id, PheromoneType::Exploration, 0.1, None);
+        self.create_pheromone_trail(ant.position, ant.colony_id, PheromoneType::exploration, 0.1, None);
 
         self.cache.update_ant(ant.id, |a| {
             a.position = new_position;
@@ -314,8 +314,8 @@ impl AntBehaviorManager {
                 self.cache.update_ant(ant.id, |a| {
                     a.position = new_position;
                     a.angle = new_angle;
-                    a.state = AntState::SeekingFood;
-                    a.target = Some(Target::Food(food_id));
+                    a.state = AntState::seeking_food;
+                    a.target = Some(Target::food(food_id));
                 });
             }
         } else {
@@ -348,8 +348,8 @@ impl AntBehaviorManager {
             self.cache.update_ant(ant.id, |a| {
                 a.position = new_position;
                 a.angle = combined_direction;
-                a.state = AntState::SeekingFood;
-                a.target = Some(Target::Food(food.id));
+                a.state = AntState::seeking_food;
+                a.target = Some(Target::food(food.id));
             });
         } else {
             self.cache.update_ant(ant.id, |a| {
@@ -364,13 +364,13 @@ impl AntBehaviorManager {
     fn move_ant_towards_target(&self, ant: &FastAnt) -> anyhow::Result<()> {
         if let Some(target) = &ant.target {
             let target_position = match target {
-                Target::Food(food_id) => {
+                Target::food(food_id) => {
                     self.cache.food_sources.get(food_id).map(|entry| entry.position)
                 }
-                Target::Colony(colony_id) => {
+                Target::colony(colony_id) => {
                     self.cache.get_colony(colony_id).map(|c| c.center)
                 }
-                Target::Position(x, y) => Some((*x, *y)),
+                Target::position(x, y) => Some((*x, *y)),
             };
 
             if let Some(target_pos) = target_position {
@@ -384,7 +384,7 @@ impl AntBehaviorManager {
             } else {
                 // Target no longer exists
                 self.cache.update_ant(ant.id, |a| {
-                    a.state = AntState::Wandering;
+                    a.state = AntState::wandering;
                     a.target = None;
                 });
             }
@@ -410,8 +410,8 @@ impl AntBehaviorManager {
         if food_collected > 0 {
             // Update ant to carry food
             self.cache.update_ant(ant.id, |a| {
-                a.state = AntState::CarryingFood;
-                a.target = Some(Target::Colony(a.colony_id));
+                a.state = AntState::carrying_food;
+                a.target = Some(Target::colony(a.colony_id));
                 a.carried_resources.insert("food".to_string(), food_collected);
             });
 
@@ -419,7 +419,7 @@ impl AntBehaviorManager {
             self.create_pheromone_trail(
                 ant.position,
                 ant.colony_id,
-                PheromoneType::Food,
+                PheromoneType::food,
                 0.8,
                 Some(food_id),
             );
@@ -428,7 +428,7 @@ impl AntBehaviorManager {
         } else {
             // No food available, wander
             self.cache.update_ant(ant.id, |a| {
-                a.state = AntState::Wandering;
+                a.state = AntState::wandering;
                 a.target = None;
             });
         }
@@ -468,12 +468,12 @@ impl AntBehaviorManager {
                     });
 
                     // Create home pheromone trail when carrying food
-                    if ant.state == AntState::CarryingFood {
+                    if ant.state == AntState::carrying_food {
                         tracing::info!("🐜 Ant {} is carrying food and is creating home pheromone trail", ant.id);
                         self.create_pheromone_trail(
                             ant.position,
                             ant.colony_id,
-                            PheromoneType::Home,
+                            PheromoneType::home,
                             0.5,
                             None,
                         );
@@ -497,7 +497,7 @@ impl AntBehaviorManager {
             // Clear ant's carried resources and set state to wandering
             self.cache.update_ant(ant.id, |a| {
                 a.carried_resources.clear();
-                a.state = AntState::Wandering;
+                a.state = AntState::wandering;
                 a.target = None;
             });
 
@@ -505,7 +505,7 @@ impl AntBehaviorManager {
         } else {
             // No food to deposit, just set to wandering
             self.cache.update_ant(ant.id, |a| {
-                a.state = AntState::Wandering;
+                a.state = AntState::wandering;
                 a.target = None;
             });
         }
@@ -515,7 +515,7 @@ impl AntBehaviorManager {
 
     fn kill_ant(&self, ant_id: i32, _current_tick: i64) {
         self.cache.update_ant(ant_id, |ant| {
-            ant.state = AntState::Dead;
+            ant.state = AntState::dead;
             ant.health = 0;
         });
         tracing::debug!("💀 Ant {} has died", ant_id);

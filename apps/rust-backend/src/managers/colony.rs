@@ -104,7 +104,7 @@ impl ColonyManager {
             health: 100,
             energy: 100,
             age_ticks: 0,
-            state: AntState::Wandering,
+            state: AntState::wandering,
             target: None,
             carried_resources: HashMap::new(),
             last_action_tick: 0,

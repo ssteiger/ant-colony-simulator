@@ -165,28 +165,28 @@ pub struct FastPheromoneTrail {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AntState {
-    Wandering,
-    SeekingFood,
-    CarryingFood,
-    Following,
-    Exploring,
-    Patrolling,
-    Dead,
+    wandering,
+    seeking_food,
+    carrying_food,
+    following,
+    exploring,
+    patrolling,
+    dead,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Target {
-    Food(i32),
-    Colony(i32),
-    Position(f32, f32),
+    food(i32),
+    colony(i32),
+    position(f32, f32),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PheromoneType {
-    Food,
-    Danger,
-    Home,
-    Exploration,
+    food,
+    danger,
+    home,
+    exploration,
 }
 
 #[derive(Debug, Clone)]

@@ -190,13 +190,13 @@ impl DatabaseManager {
             }
 
             let state_str = match ant.state {
-                AntState::Wandering => "wandering",
-                AntState::SeekingFood => "seeking_food",
-                AntState::CarryingFood => "carrying_food",
-                AntState::Following => "following",
-                AntState::Exploring => "exploring",
-                AntState::Patrolling => "patrolling",
-                AntState::Dead => "dead",
+                AntState::wandering => "wandering",
+                AntState::seeking_food => "seeking_food",
+                AntState::carrying_food => "carrying_food",
+                AntState::following => "following",
+                AntState::exploring => "exploring",
+                AntState::patrolling => "patrolling",
+                AntState::dead => "dead",
             };
 
             query_builder.push("(");

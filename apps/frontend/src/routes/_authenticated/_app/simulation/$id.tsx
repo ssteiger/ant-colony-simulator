@@ -236,6 +236,8 @@ const SimulationField = ({
           <g key={`trails-${trailType}`}>
             {trails.map((trail) => {
               const colony = colonies.find(c => c.id === trail.colony_id);
+
+              console.log({ trail_type: trail.trail_type })
               
               // Get color based on trail type
               let trailColor: string;
@@ -253,7 +255,7 @@ const SimulationField = ({
                   trailColor = '#6366f1'; // indigo for exploration
                   break;
                 default:
-                  trailColor = '#6b7280'; // gray for unknown types
+                  trailColor = '#000'; // gray for unknown types
               }
               
               // Calculate size and opacity based on strength
@@ -508,40 +510,36 @@ const SimulationPage = () => {
             <h4 className="font-semibold mb-2">Ant Activity</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Wandering:</span>
+                <span>wandering:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'wandering').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Seeking Food:</span>
+                <span>seeking_food:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'seeking_food').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Carrying Food:</span>
+                <span>carrying_food:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'carrying_food').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Returning to Colony:</span>
-                <span>{wsData.ants.filter(ant => ant.state === 'returning_to_colony').length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Following:</span>
+                <span>following:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'following').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Exploring:</span>
+                <span>exploring:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'exploring').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Patrolling:</span>
+                <span>patrolling:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'patrolling').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Dead:</span>
+                <span>dead:</span>
                 <span>{wsData.ants.filter(ant => ant.state === 'dead').length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Other States:</span>
-                <span>{wsData.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food', 'returning_to_colony', 'following', 'exploring', 'patrolling', 'dead'].includes(ant.state)).length}</span>
+                <span>other states:</span>
+                <span>{wsData.ants.filter(ant => !['wandering', 'seeking_food', 'carrying_food', 'following', 'exploring', 'patrolling', 'dead'].includes(ant.state)).length}</span>
               </div>
             </div>
           </div>
