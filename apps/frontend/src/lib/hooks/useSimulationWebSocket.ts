@@ -31,7 +31,7 @@ interface BackendFoodSource {
 interface BackendPheromoneTrail {
   id: number
   colony_id: number
-  trail_type: string
+  trail_type: 'food' | 'danger' | 'home' | 'exploration'
   position: [number, number]
   strength: number
 }
@@ -110,7 +110,7 @@ type RenderFoodSource = {
 type RenderPheromoneTrail = {
   id: string;
   colony_id: string;
-  trail_type: string;
+  trail_type: 'food' | 'danger' | 'home' | 'exploration';
   position_x: number;
   position_y: number;
   strength: number;

@@ -113,7 +113,8 @@ impl AntBehaviorManager {
                     _ => 25.0,
                 };
 
-                let (direction, strength) = self.get_pheromone_influence(
+                // First check for food pheromone trails
+                let (food_direction, food_strength) = self.get_pheromone_influence(
                     ant.position,
                     ant.colony_id,
                     search_radius,
@@ -125,9 +126,9 @@ impl AntBehaviorManager {
                     _ => 0.15,
                 };
 
-                if strength > follow_threshold {
-                    tracing::info!("🐜 Ant {} is following pheromone", ant.id);
-                    return Ok(AntAction::FollowPheromone(direction, strength));
+                if food_strength > follow_threshold {
+                    tracing::info!("🐜 Ant {} is following food pheromone trail", ant.id);
+                    return Ok(AntAction::FollowPheromone(food_direction, food_strength));
                 }
 
                 // Role-specific default behavior
@@ -549,25 +550,29 @@ impl AntBehaviorManager {
         let mut total_strength = 0.0;
 
         for trail in trails {
-            if trail.colony_id != colony_id || trail.strength <= 0.1 {
+            // Only consider trails from the same colony
+            if trail.colony_id != colony_id {
                 continue;
             }
 
-            let dx = trail.position.0 - position.0;
-            let dy = trail.position.1 - position.1;
-            let distance = (dx * dx + dy * dy).sqrt();
+            // For ants not carrying food, prioritize food pheromone trails
+            if trail.trail_type == PheromoneType::food && trail.strength > 0.1 {
+                let dx = trail.position.0 - position.0;
+                let dy = trail.position.1 - position.1;
+                let distance = (dx * dx + dy * dy).sqrt();
 
-            if distance > 0.0 && distance <= radius {
-                let normalized_distance = distance / radius;
-                let distance_decay = (-normalized_distance * 3.0).exp();
-                let influence = trail.strength * distance_decay;
+                if distance > 0.0 && distance <= radius {
+                    let normalized_distance = distance / radius;
+                    let distance_decay = (-normalized_distance * 3.0).exp();
+                    let influence = trail.strength * distance_decay;
 
-                let dir_x = dx / distance;
-                let dir_y = dy / distance;
+                    let dir_x = dx / distance;
+                    let dir_y = dy / distance;
 
-                total_influence_x += dir_x * influence;
-                total_influence_y += dir_y * influence;
-                total_strength += influence;
+                    total_influence_x += dir_x * influence;
+                    total_influence_y += dir_y * influence;
+                    total_strength += influence;
+                }
             }
         }
 

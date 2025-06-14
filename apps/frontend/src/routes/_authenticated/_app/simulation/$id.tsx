@@ -255,6 +255,7 @@ const SimulationField = ({
                   trailColor = '#6366f1'; // indigo for exploration
                   break;
                 default:
+                  console.warn('Unknown pheromone trail type:', trail.trail_type);
                   trailColor = '#000'; // gray for unknown types
               }
               
