@@ -310,49 +310,26 @@ const SimulationField = ({
         })}
         
         {/* Ants */}
-        {ants.map((ant) => {
-          const colony = colonies.find(c => c.id === ant.colony_id);
-          
-          const imageSize = 16; // Increased from 8 to 16 pixels for better visibility
-          
-          // Convert angle from radians to degrees for SVG rotation
-          // Since ant sprite points up, we need to subtract 90 degrees to align with movement
-          const antAngleDegrees = ((Number(ant.angle) * 180) / Math.PI) - 90;
-          
-          return (
-            <g key={ant.id}>
-              {/* Ant image */}
-              <image
-                href="/ant_sprite.png"
-                x={ant.position_x }
-                y={ant.position_y}
-                width={imageSize}
-                height={imageSize}
-                transform={`rotate(${antAngleDegrees} ${ant.position_x} ${ant.position_y})`}
-                className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
-                style={{
-                  // Enable hardware acceleration for smoother rendering
-                  willChange: 'transform',
-                  transformOrigin: 'center',
-                  // Add transition for smoother movement
-                  transition: 'transform 0.1s linear'
-                }}
-                onError={(e) => {
-                  console.error('Failed to load ant sprite:', e);
-                  // Fallback to a colored circle if image fails to load
-                  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                  circle.setAttribute('cx', String(ant.position_x));
-                  circle.setAttribute('cy', String(ant.position_y));
-                  circle.setAttribute('r', String(imageSize / 2));
-                  circle.setAttribute('fill', `hsl(${ant.ant_type.color_hue}, 70%, 50%)`);
-                  e.currentTarget.parentNode?.replaceChild(circle, e.currentTarget);
-                }}
-              >
-                <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${antAngleDegrees.toFixed(2)}° | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
-              </image>
-            </g>
-          );
-        })}
+        {ants.map((ant) => (
+          <g
+            key={ant.id}
+            transform={`translate(${ant.position_x}, ${ant.position_y}) rotate(${ant.angle})`}
+          >
+            <image
+              href="/ant_sprite.png"
+              x={-8} // Center the sprite (assuming 16x16 sprite)
+              y={-8}
+              width={16}
+              height={16}
+              style={{
+                filter: `hue-rotate(${ant.ant_type.color_hue}deg)`,
+                opacity: 0.9
+              }}
+            >
+              <title>{`${ant.ant_type.name} | State: ${ant.state} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${ant.angle.toFixed(1)}°`}</title>
+            </image>
+          </g>
+        ))}
       </svg>
     </div>
   )
@@ -490,28 +467,28 @@ const SimulationPage = () => {
       {hasSimulation && wsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="font-semibold mb-2">Ant Positions</h4>
-          <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
-            {wsData?.ants.map((ant) => (
-              <div key={ant.id} className="flex justify-between items-center border-b pb-1">
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: `hsl(${ant.ant_type.color_hue}, 70%, 50%)` }}
-                  />
-                  <span className="font-medium">ant id {ant.id} - {ant.ant_type.name}</span>
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-semibold mb-2">Ant Positions</h4>
+            <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
+              {wsData?.ants.map((ant) => (
+                <div key={ant.id} className="flex justify-between items-center border-b pb-1">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: `hsl(${ant.ant_type.color_hue}, 70%, 50%)` }}
+                    />
+                    <span className="font-medium">ant id {ant.id} - {ant.ant_type.name}</span>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    ({ant.position_x.toFixed(1)}, {ant.position_y.toFixed(1)}) angle: {ant.angle.toFixed(1)}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-600">
-                  ({ant.position_x.toFixed(1)}, {ant.position_y.toFixed(1)}) angle: {ant.angle.toFixed(1)}
-                </div>
-              </div>
-            ))}
-            {wsData?.ants.length === 0 && (
-              <p className="text-gray-500 text-xs">No ants in simulation</p>
-            )}
+              ))}
+              {wsData?.ants.length === 0 && (
+                <p className="text-gray-500 text-xs">No ants in simulation</p>
+              )}
+            </div>
           </div>
-        </div>
 
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Ant Activity</h4>
