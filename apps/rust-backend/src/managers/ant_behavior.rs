@@ -166,10 +166,6 @@ impl AntBehaviorManager {
                 Ok(AntAction::ReturnToColony)
             }
 
-            AntState::ReturningToColony => {
-                Ok(AntAction::ReturnToColony)
-            }
-
             _ => Ok(AntAction::Wander),
         }
     }
@@ -469,7 +465,6 @@ impl AntBehaviorManager {
                     self.cache.update_ant(ant.id, |a| {
                         a.position = new_position;
                         a.angle = new_angle;
-                        a.state = AntState::ReturningToColony;
                     });
 
                     // Create home pheromone trail when carrying food

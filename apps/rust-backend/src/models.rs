@@ -168,7 +168,6 @@ pub enum AntState {
     Wandering,
     SeekingFood,
     CarryingFood,
-    ReturningToColony,
     Following,
     Exploring,
     Patrolling,

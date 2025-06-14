@@ -193,7 +193,6 @@ impl DatabaseManager {
                 AntState::Wandering => "wandering",
                 AntState::SeekingFood => "seeking_food",
                 AntState::CarryingFood => "carrying_food",
-                AntState::ReturningToColony => "returning_to_colony",
                 AntState::Following => "following",
                 AntState::Exploring => "exploring",
                 AntState::Patrolling => "patrolling",

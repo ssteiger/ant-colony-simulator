@@ -469,7 +469,6 @@ impl AntColonySimulator {
             "wandering" => AntState::Wandering,
             "seeking_food" => AntState::SeekingFood,
             "carrying_food" => AntState::CarryingFood,
-            "returning_to_colony" => AntState::ReturningToColony,
             "following" => AntState::Following,
             "exploring" => AntState::Exploring,
             "patrolling" => AntState::Patrolling,
