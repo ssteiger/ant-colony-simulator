@@ -166,8 +166,8 @@ const SimulationField = ({
   onMouseLeave: () => void
 }) => {
   const gridSize = 4 // Size of each grid square in pixels
-  const fieldWidth = simulation ? Math.min(simulation.world_width, 800) : 0 // Limit display width
-  const fieldHeight = simulation ? Math.min(simulation.world_height, 600) : 0 // Limit display height
+  const fieldWidth = simulation ? simulation.world_width : 0
+  const fieldHeight = simulation ? simulation.world_height : 0
   const gridCols = Math.floor(fieldWidth / gridSize)
   const gridRows = Math.floor(fieldHeight / gridSize)
 
@@ -194,15 +194,6 @@ const SimulationField = ({
     acc[trail.trail_type].push(trail)
     return acc
   }, {} as Record<string, RenderPheromoneTrail[]>)
-
-  // Helper function to safely convert and constrain positions while preserving precision
-  const constrainPosition = (value: number, max: number): number => {
-    const numValue = Number(value)
-    // Scale the value to fit within the display bounds
-    const scaledValue = (numValue / simulation.world_width) * fieldWidth
-    // Constrain to display bounds
-    return scaledValue < 0 ? 0 : scaledValue > max ? max : scaledValue
-  }
 
   return (
     <div 
@@ -257,14 +248,11 @@ const SimulationField = ({
                 ? `hsl(${colony.color_hue}, 80%, 60%)`
                 : '#059669'; // green for food trails
 
-              const trailX = constrainPosition(trail.position_x, fieldWidth);
-              const trailY = constrainPosition(trail.position_y, fieldHeight);
-
               return (
                 <circle
                   key={trail.id}
-                  cx={trailX}
-                  cy={trailY}
+                  cx={trail.position_x}
+                  cy={trail.position_y}
                   r={2} // Fixed small size for path markers
                   fill={trailColor}
                   opacity={opacity}
@@ -278,14 +266,11 @@ const SimulationField = ({
         
         {/* Food sources */}
         {foodSources.map((food) => {
-          const foodX = constrainPosition(food.position_x, fieldWidth);
-          const foodY = constrainPosition(food.position_y, fieldHeight);
-          
           return (
             <circle
               key={food.id}
-              cx={foodX}
-              cy={foodY}
+              cx={food.position_x}
+              cy={food.position_y}
               r={Math.max(3, Math.min(Number(food.amount) / 10, 10))}
               fill="#10b981"
               opacity={0.7}
@@ -298,15 +283,13 @@ const SimulationField = ({
         {/* Colonies */}
         {colonies.map((colony) => {
           const colonyAnts = ants.filter(ant => ant.colony_id === colony.id);
-          const colonyX = constrainPosition(colony.center_x, fieldWidth);
-          const colonyY = constrainPosition(colony.center_y, fieldHeight);
           
           return (
             <g key={colony.id}>
               {/* Colony territory circle */}
               <circle
-                cx={colonyX}
-                cy={colonyY}
+                cx={colony.center_x}
+                cy={colony.center_y}
                 r={Math.min(Number(colony.radius), 50)}
                 fill={`hsl(${colony.color_hue}, 50%, 80%)`}
                 opacity={0.3}
@@ -315,8 +298,8 @@ const SimulationField = ({
               </circle>
               {/* Colony center */}
               <circle
-                cx={colonyX}
-                cy={colonyY}
+                cx={colony.center_x}
+                cy={colony.center_y}
                 r={5}
                 fill={`hsl(${colony.color_hue}, 70%, 50%)`}
               >
@@ -330,11 +313,8 @@ const SimulationField = ({
         {ants.map((ant) => {
           const colony = colonies.find(c => c.id === ant.colony_id);
           
-          const imageSize = 8; // Size of the ant image
+          const imageSize = 16; // Increased from 8 to 16 pixels for better visibility
           
-          // Calculate precise positions, preserving decimal precision for smooth movement
-          const antX = constrainPosition(ant.position_x, fieldWidth);
-          const antY = constrainPosition(ant.position_y, fieldHeight);
           // Convert angle from radians to degrees for SVG rotation
           // Since ant sprite points up, we need to subtract 90 degrees to align with movement
           const antAngleDegrees = ((Number(ant.angle) * 180) / Math.PI) - 90;
@@ -344,11 +324,11 @@ const SimulationField = ({
               {/* Ant image */}
               <image
                 href="/ant_sprite.png"
-                x={antX - imageSize / 2}
-                y={antY - imageSize / 2}
+                x={ant.position_x }
+                y={ant.position_y}
                 width={imageSize}
                 height={imageSize}
-                transform={`rotate(${antAngleDegrees} ${antX} ${antY})`}
+                transform={`rotate(${antAngleDegrees} ${ant.position_x} ${ant.position_y})`}
                 className={ant.state === 'carrying_food' ? 'animate-pulse' : ''}
                 style={{
                   // Enable hardware acceleration for smoother rendering
@@ -356,6 +336,16 @@ const SimulationField = ({
                   transformOrigin: 'center',
                   // Add transition for smoother movement
                   transition: 'transform 0.1s linear'
+                }}
+                onError={(e) => {
+                  console.error('Failed to load ant sprite:', e);
+                  // Fallback to a colored circle if image fails to load
+                  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                  circle.setAttribute('cx', String(ant.position_x));
+                  circle.setAttribute('cy', String(ant.position_y));
+                  circle.setAttribute('r', String(imageSize / 2));
+                  circle.setAttribute('fill', `hsl(${ant.ant_type.color_hue}, 70%, 50%)`);
+                  e.currentTarget.parentNode?.replaceChild(circle, e.currentTarget);
                 }}
               >
                 <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${antAngleDegrees.toFixed(2)}° | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
@@ -436,35 +426,6 @@ const SimulationPage = () => {
         <div className="flex gap-2">
           <CreateSimulationButton />
           <DeleteSimulationButton />
-          <Button 
-            onClick={() => connect()} 
-            variant="outline"
-            size="sm"
-            disabled={connectionState === 'connecting'}
-          >
-            {connectionState === 'connecting' ? 'Connecting...' : 'Reconnect'}
-          </Button>
-          <Button 
-            onClick={() => {
-              // Simple WebSocket test outside of React hook
-              console.log('🧪 Testing raw WebSocket connection...')
-              const testWs = new WebSocket('ws://127.0.0.1:8080/ws')
-              testWs.onopen = () => {
-                console.log('✅ Raw WebSocket test: CONNECTED')
-                testWs.close()
-              }
-              testWs.onerror = (err) => {
-                console.error('❌ Raw WebSocket test: ERROR', err)
-              }
-              testWs.onclose = (event) => {
-                console.log('🔌 Raw WebSocket test: CLOSED', event.code, event.reason)
-              }
-            }}
-            variant="secondary"
-            size="sm"
-          >
-            Test WS
-          </Button>
           {hasSimulation && <AddAntsButton />}
           {hasSimulation && <AddFoodSourcesButton />}
           {hasSimulation && <ResetAntPositionsButton />}
@@ -525,32 +486,33 @@ const SimulationPage = () => {
           onMouseLeave={handleMouseLeave}
         />
       )}
-      
-      <div className="bg-white border rounded-lg p-4">
-        <h4 className="font-semibold mb-2">Ant Positions</h4>
-        <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
-          {wsData?.ants.map((ant) => (
-            <div key={ant.id} className="flex justify-between items-center border-b pb-1">
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-2 h-2 rounded-full" 
-                  style={{ backgroundColor: `hsl(${ant.ant_type.color_hue}, 70%, 50%)` }}
-                />
-                <span className="font-medium">ant id {ant.id} - {ant.ant_type.name}</span>
-              </div>
-              <div className="text-xs text-gray-600">
-                ({ant.position_x.toFixed(1)}, {ant.position_y.toFixed(1)})
-              </div>
-            </div>
-          ))}
-          {wsData?.ants.length === 0 && (
-            <p className="text-gray-500 text-xs">No ants in simulation</p>
-          )}
-        </div>
-      </div>
 
       {hasSimulation && wsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        <div className="bg-white border rounded-lg p-4">
+          <h4 className="font-semibold mb-2">Ant Positions</h4>
+          <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
+            {wsData?.ants.map((ant) => (
+              <div key={ant.id} className="flex justify-between items-center border-b pb-1">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-2 h-2 rounded-full" 
+                    style={{ backgroundColor: `hsl(${ant.ant_type.color_hue}, 70%, 50%)` }}
+                  />
+                  <span className="font-medium">ant id {ant.id} - {ant.ant_type.name}</span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  ({ant.position_x.toFixed(1)}, {ant.position_y.toFixed(1)}) angle: {ant.angle.toFixed(1)}
+                </div>
+              </div>
+            ))}
+            {wsData?.ants.length === 0 && (
+              <p className="text-gray-500 text-xs">No ants in simulation</p>
+            )}
+          </div>
+        </div>
+
           <div className="bg-white border rounded-lg p-4">
             <h4 className="font-semibold mb-2">Ant Activity</h4>
             <div className="space-y-2 text-sm">
