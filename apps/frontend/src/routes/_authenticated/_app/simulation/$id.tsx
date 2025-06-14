@@ -478,6 +478,7 @@ const SimulationPage = () => {
                       style={{ backgroundColor: `hsl(${ant.ant_type.color_hue}, 70%, 50%)` }}
                     />
                     <span className="font-medium">ant id {ant.id} - {ant.ant_type.name}</span>
+                    <span className="text-xs text-gray-500">({ant.state})</span>
                   </div>
                   <div className="text-xs text-gray-600">
                     ({ant.position_x.toFixed(1)}, {ant.position_y.toFixed(1)}) angle: {ant.angle.toFixed(1)}
