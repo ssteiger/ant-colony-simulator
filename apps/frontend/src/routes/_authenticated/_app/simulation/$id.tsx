@@ -7,6 +7,7 @@ import { ResetAntPositionsButton } from './-components/reset-ant-positions'
 import { Button } from '~/lib/components/ui/button'
 import { useSimulationWebSocket } from '~/lib/hooks/useSimulationWebSocket'
 import type { Simulation } from '~/types/drizzle'
+import React from 'react'
 
 // Define minimal types for the rendered data
 type RenderAnt = {
@@ -150,14 +151,33 @@ const SimulationField = ({
   ants, 
   colonies, 
   foodSources,
-  pheromoneTrails
+  pheromoneTrails,
+  onFieldSizeChange,
+  onMouseMove,
+  onMouseLeave
 }: { 
   simulation: Simulation | null
   ants: RenderAnt[]
   colonies: RenderColony[]
   foodSources: RenderFoodSource[]
   pheromoneTrails: RenderPheromoneTrail[]
+  onFieldSizeChange: (width: number, height: number) => void
+  onMouseMove: (e: React.MouseEvent<HTMLDivElement>) => void
+  onMouseLeave: () => void
 }) => {
+  const gridSize = 4 // Size of each grid square in pixels
+  const fieldWidth = simulation ? Math.min(simulation.world_width, 800) : 0 // Limit display width
+  const fieldHeight = simulation ? Math.min(simulation.world_height, 600) : 0 // Limit display height
+  const gridCols = Math.floor(fieldWidth / gridSize)
+  const gridRows = Math.floor(fieldHeight / gridSize)
+
+  // Notify parent of field size changes
+  React.useEffect(() => {
+    if (simulation) {
+      onFieldSizeChange(fieldWidth, fieldHeight)
+    }
+  }, [fieldWidth, fieldHeight, onFieldSizeChange, simulation])
+
   if (!simulation) {
     return (
       <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
@@ -165,12 +185,6 @@ const SimulationField = ({
       </div>
     )
   }
-
-  const gridSize = 4 // Size of each grid square in pixels
-  const fieldWidth = Math.min(simulation.world_width, 800) // Limit display width
-  const fieldHeight = Math.min(simulation.world_height, 600) // Limit display height
-  const gridCols = Math.floor(fieldWidth / gridSize)
-  const gridRows = Math.floor(fieldHeight / gridSize)
 
   // Group pheromone trails by type for different rendering
   const trailsByType = pheromoneTrails.reduce((acc, trail) => {
@@ -191,7 +205,13 @@ const SimulationField = ({
   }
 
   return (
-    <div className="relative border border-gray-300 rounded-lg overflow-hidden" style={{ width: fieldWidth, height: fieldHeight }}>
+    <div 
+      className="relative border border-gray-300 rounded-lg overflow-hidden" 
+      style={{ width: fieldWidth, height: fieldHeight }}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      
       {/* Grid background */}
       <svg width={fieldWidth} height={fieldHeight} className="absolute inset-0 bg-white" aria-label="Simulation field with grid">
         <title>Ant Simulation Field</title>
@@ -348,6 +368,8 @@ const SimulationField = ({
 const SimulationPage = () => {
   const params = Route.useParams()
   const simulationId = params.id
+  const [fieldSize, setFieldSize] = React.useState({ width: 0, height: 0 })
+  const [mouseCoords, setMouseCoords] = React.useState<{ x: number; y: number } | null>(null)
 
   // Use WebSocket hook for real-time updates
   const { 
@@ -359,14 +381,21 @@ const SimulationPage = () => {
     lastUpdateTime 
   } = useSimulationWebSocket(simulationId)
 
-  console.log({
-    wsData,
-    connectionState, 
-    isLoading, 
-    error, 
-    connect,
-    lastUpdateTime 
-  })
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    
+    // Convert to simulation coordinates
+    const simX = (x / fieldSize.width) * (wsData?.simulation_id ? 800 : 0)
+    const simY = (y / fieldSize.height) * (wsData?.simulation_id ? 600 : 0)
+    
+    setMouseCoords({ x: simX, y: simY })
+  }
+
+  const handleMouseLeave = () => {
+    setMouseCoords(null)
+  }
 
   // Fallback to get simulation metadata if needed
   // This could be enhanced to fetch initial simulation data when WebSocket is not available
@@ -440,7 +469,12 @@ const SimulationPage = () => {
       </div>
       
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold">Simulation Field</h3>
+        <h3 className="text-lg font-semibold">Simulation Field ({fieldSize.width}x{fieldSize.height})</h3>
+        {mouseCoords && (
+          <div className="fixed bottom-14 right-4 bg-black/70 text-white px-2 py-1 rounded text-xs z-50">
+            ({mouseCoords.x.toFixed(1)}, {mouseCoords.y.toFixed(1)})
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
           Real-time WebSocket updates. Colored dots are ants, colored circles are colonies, green circles are food sources, small colored dots show food trails.
         </p>
@@ -483,6 +517,9 @@ const SimulationPage = () => {
           colonies={wsData?.colonies || []}
           foodSources={wsData?.foodSources || []}
           pheromoneTrails={wsData?.pheromoneTrails || []}
+          onFieldSizeChange={(width, height) => setFieldSize({ width, height })}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         />
       )}
       
