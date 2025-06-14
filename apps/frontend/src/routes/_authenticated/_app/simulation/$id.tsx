@@ -336,7 +336,8 @@ const SimulationField = ({
           const antX = constrainPosition(ant.position_x, fieldWidth);
           const antY = constrainPosition(ant.position_y, fieldHeight);
           // Convert angle from radians to degrees for SVG rotation
-          const antAngleDegrees = (Number(ant.angle) * 180) / Math.PI;
+          // Since ant sprite points up, we need to subtract 90 degrees to align with movement
+          const antAngleDegrees = ((Number(ant.angle) * 180) / Math.PI) - 90;
           
           return (
             <g key={ant.id}>
@@ -352,7 +353,9 @@ const SimulationField = ({
                 style={{
                   // Enable hardware acceleration for smoother rendering
                   willChange: 'transform',
-                  transformOrigin: 'center'
+                  transformOrigin: 'center',
+                  // Add transition for smoother movement
+                  transition: 'transform 0.1s linear'
                 }}
               >
                 <title>{`${ant.ant_type.name} (${ant.ant_type.role}) | State: ${ant.state.replace('_', ' ')} | Position: (${ant.position_x.toFixed(2)}, ${ant.position_y.toFixed(2)}) | Angle: ${antAngleDegrees.toFixed(2)}° | Colony: ${colony?.name || 'Unknown'} | Speed: ${ant.ant_type.base_speed} | Strength: ${ant.ant_type.base_strength} | Health: ${ant.ant_type.base_health}`}</title>
@@ -523,6 +526,29 @@ const SimulationPage = () => {
         />
       )}
       
+      <div className="bg-white border rounded-lg p-4">
+        <h4 className="font-semibold mb-2">Ant Positions</h4>
+        <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
+          {wsData?.ants.map((ant) => (
+            <div key={ant.id} className="flex justify-between items-center border-b pb-1">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: `hsl(${ant.ant_type.color_hue}, 70%, 50%)` }}
+                />
+                <span className="font-medium">ant id {ant.id} - {ant.ant_type.name}</span>
+              </div>
+              <div className="text-xs text-gray-600">
+                ({ant.position_x.toFixed(1)}, {ant.position_y.toFixed(1)})
+              </div>
+            </div>
+          ))}
+          {wsData?.ants.length === 0 && (
+            <p className="text-gray-500 text-xs">No ants in simulation</p>
+          )}
+        </div>
+      </div>
+
       {hasSimulation && wsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white border rounded-lg p-4">

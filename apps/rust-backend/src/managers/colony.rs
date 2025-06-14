@@ -56,12 +56,14 @@ impl ColonyManager {
             });
         }
 
+        /*
         // Spawn new ants if colony is below minimum population
         if new_population < 50 && current_tick % 20 == 0 {
             if let Err(e) = self.spawn_ant(colony_id, current_tick).await {
                 tracing::warn!("Failed to spawn ant for colony {}: {}", colony_id, e);
             }
         }
+        */
 
         // Consume resources
         self.consume_colony_resources(colony_id, new_population);
