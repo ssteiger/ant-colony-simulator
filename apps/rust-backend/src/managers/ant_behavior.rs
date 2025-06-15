@@ -10,6 +10,11 @@ pub struct AntBehaviorManager {
 }
 
 impl AntBehaviorManager {
+    // Movement constraints as associated constants
+    const MAX_TURN_RATE: f32 = 0.1; // Maximum radians per tick
+    const ACCELERATION: f32 = 0.2; // Speed change per tick
+    const DECELERATION: f32 = 0.1; // Speed change per tick
+
     pub fn new(cache: Arc<SimulationCache>) -> Self {
         Self { cache }
     }
@@ -187,15 +192,28 @@ impl AntBehaviorManager {
     fn move_ant_randomly(&self, ant: &FastAnt) -> anyhow::Result<()> {
         let mut rng = SmallRng::from_entropy();
         
-        // 5% chance to change direction
+        // Calculate new angle with turn rate limit
         let mut new_angle = ant.angle;
         if rng.gen_bool(0.05) {
-            let angle_change = rng.gen_range(-0.15..0.15) * std::f32::consts::PI;
+            let desired_angle_change = rng.gen_range(-0.15..0.15) * std::f32::consts::PI;
+            // Limit the turn rate
+            let angle_change = desired_angle_change.max(-Self::MAX_TURN_RATE).min(Self::MAX_TURN_RATE);
             new_angle += angle_change;
         }
 
-        // Move forward
-        let move_distance = ant.speed;
+        // Gradually adjust speed
+        let mut new_speed = ant.speed;
+        if rng.gen_bool(0.1) {
+            // Randomly accelerate or decelerate
+            if rng.gen_bool(0.5) {
+                new_speed = (new_speed + Self::ACCELERATION).min(ant.speed * 1.5);
+            } else {
+                new_speed = (new_speed - Self::DECELERATION).max(ant.speed * 0.5);
+            }
+        }
+
+        // Move forward with new speed
+        let move_distance = new_speed;
         let mut new_position = (
             ant.position.0 + new_angle.cos() * move_distance,
             ant.position.1 + new_angle.sin() * move_distance,
@@ -225,13 +243,12 @@ impl AntBehaviorManager {
             new_angle += 2.0 * std::f32::consts::PI;
         }
 
-        //tracing::info!("Ant {} moved from {:?} to {:?}", ant.id, ant.position, new_position);
-
         // Update ant
         self.cache.update_ant(ant.id, |ant| {
             ant.position = new_position;
             ant.angle = new_angle;
-            ant.state = AntState::wandering;  // Explicitly set state
+            ant.speed = new_speed;
+            ant.state = AntState::wandering;
             ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
         });
 
@@ -364,34 +381,68 @@ impl AntBehaviorManager {
 
     fn move_ant_towards_target(&self, ant: &FastAnt) -> anyhow::Result<()> {
         if let Some(target) = &ant.target {
-            let target_position = match target {
+            let target_pos = match target {
                 Target::food(food_id) => {
-                    self.cache.food_sources.get(food_id).map(|entry| entry.position)
+                    if let Some(food) = self.cache.food_sources.get(food_id) {
+                        food.position
+                    } else {
+                        return Ok(());
+                    }
                 }
+                Target::position(x, y) => (*x as f32, *y as f32),
                 Target::colony(colony_id) => {
-                    self.cache.get_colony(colony_id).map(|c| c.center)
+                    if let Some(colony) = self.cache.colonies.get(colony_id) {
+                        colony.center
+                    } else {
+                        return Ok(());
+                    }
                 }
-                Target::position(x, y) => Some((*x, *y)),
             };
 
-            if let Some(target_pos) = target_position {
-                let direction = (target_pos.1 - ant.position.1).atan2(target_pos.0 - ant.position.0);
-                let new_position = self.move_with_bounds(ant.position, direction, ant.speed);
+            // Calculate desired angle to target
+            let dx = target_pos.0 - ant.position.0;
+            let dy = target_pos.1 - ant.position.1;
+            let desired_angle = dy.atan2(dx);
 
-                self.cache.update_ant(ant.id, |a| {
-                    a.position = new_position;
-                    a.angle = direction;
-                });
-            } else {
-                // Target no longer exists
-                self.cache.update_ant(ant.id, |a| {
-                    a.state = AntState::wandering;
-                    a.target = None;
-                });
+            // Calculate angle difference
+            let mut angle_diff = desired_angle - ant.angle;
+            while angle_diff > std::f32::consts::PI {
+                angle_diff -= 2.0 * std::f32::consts::PI;
             }
-        } else {
-            // No target, wander
-            self.move_ant_randomly(ant)?;
+            while angle_diff < -std::f32::consts::PI {
+                angle_diff += 2.0 * std::f32::consts::PI;
+            }
+
+            // Limit turn rate
+            let angle_change = angle_diff.max(-Self::MAX_TURN_RATE).min(Self::MAX_TURN_RATE);
+            let new_angle = ant.angle + angle_change;
+
+            // Adjust speed based on distance to target
+            let distance = self.distance(ant.position, target_pos);
+            let mut new_speed = ant.speed;
+            
+            if distance < 20.0 {
+                // Slow down when approaching target
+                new_speed = (new_speed - Self::DECELERATION).max(ant.speed * 0.5);
+            } else {
+                // Accelerate when far from target
+                new_speed = (new_speed + Self::ACCELERATION).min(ant.speed * 1.5);
+            }
+
+            // Move forward
+            let move_distance = new_speed;
+            let new_position = (
+                ant.position.0 + new_angle.cos() * move_distance,
+                ant.position.1 + new_angle.sin() * move_distance,
+            );
+
+            // Update ant
+            self.cache.update_ant(ant.id, |ant| {
+                ant.position = new_position;
+                ant.angle = new_angle;
+                ant.speed = new_speed;
+                ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
+            });
         }
 
         Ok(())
