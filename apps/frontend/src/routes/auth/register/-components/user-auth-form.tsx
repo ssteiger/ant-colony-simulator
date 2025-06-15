@@ -64,12 +64,12 @@ export function UserAuthFormRegister({ className, ...props }: UserAuthFormProps)
 
   async function onSubmit(event: React.SyntheticEvent) {
     event.preventDefault()
-    emailSignup.mutate({ email })
+    emailSignup.mutate({ data: { email } })
   }
 
   async function onVerifyCode(event: React.SyntheticEvent) {
     event.preventDefault()
-    verifyCodeMutation.mutate({ email, code: verificationCode })
+    verifyCodeMutation.mutate({ data: { email, code: verificationCode } })
   }
 
   return (
@@ -160,7 +160,7 @@ export function UserAuthFormRegister({ className, ...props }: UserAuthFormProps)
             variant="outline"
             type="button"
             disabled={isLoading}
-            onClick={() => githubSignIn.mutate()}
+            onClick={() => githubSignIn.mutate({ data: { provider: 'github' } })}
           >
             {isLoading ? (
               <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
