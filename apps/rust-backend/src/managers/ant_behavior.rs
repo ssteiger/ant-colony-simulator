@@ -25,7 +25,7 @@ impl AntBehaviorManager {
         // Get all living ants efficiently
         let living_ants: Vec<_> = self.cache.ants
             .iter()
-            .filter(|entry| entry.state != AntState::dead)
+            .filter(|entry| entry.state != AntState::Dead)
             .map(|entry| (entry.key().clone(), entry.value().clone()))
             .collect();
 
@@ -86,7 +86,7 @@ impl AntBehaviorManager {
             .ok_or_else(|| anyhow::anyhow!("Ant type {} not found", ant.ant_type_id))?;
 
         match ant.state {
-            AntState::wandering => {
+            AntState::Wandering => {
                 // Look for nearby food first
                 let nearby_food = self.cache.get_food_sources_near_position(ant.position, 50.0)
                     .into_iter()
@@ -150,9 +150,9 @@ impl AntBehaviorManager {
                 }
             }
 
-            AntState::seeking_food => {
+            AntState::SeekingFood => {
                 if let Some(target) = &ant.target {
-                    if let Target::food(food_id) = target {
+                    if let Target::Food(food_id) = target {
                         // Check if we reached the food
                         if let Some(food) = self.cache.food_sources.get(food_id).map(|entry| entry.clone()) {
                             let distance = self.distance(ant.position, food.position);
@@ -168,7 +168,7 @@ impl AntBehaviorManager {
                 Ok(AntAction::Wander)
             }
 
-            AntState::carrying_food => {
+            AntState::CarryingFood => {
                 Ok(AntAction::ReturnToColony)
             }
 
@@ -214,41 +214,14 @@ impl AntBehaviorManager {
 
         // Move forward with new speed
         let move_distance = new_speed;
-        let mut new_position = (
-            ant.position.0 + new_angle.cos() * move_distance,
-            ant.position.1 + new_angle.sin() * move_distance,
-        );
-
-        // Handle boundaries with reflection
-        let bounds = &self.cache.world_bounds;
-        if new_position.0 < 0.0 {
-            new_position.0 = -new_position.0;
-            new_angle = std::f32::consts::PI - new_angle;
-        } else if new_position.0 > bounds.width {
-            new_position.0 = bounds.width - (new_position.0 - bounds.width);
-            new_angle = std::f32::consts::PI - new_angle;
-        }
-
-        if new_position.1 < 0.0 {
-            new_position.1 = -new_position.1;
-            new_angle = -new_angle;
-        } else if new_position.1 > bounds.height {
-            new_position.1 = bounds.height - (new_position.1 - bounds.height);
-            new_angle = -new_angle;
-        }
-
-        // Normalize angle
-        new_angle = new_angle % (2.0 * std::f32::consts::PI);
-        if new_angle < 0.0 {
-            new_angle += 2.0 * std::f32::consts::PI;
-        }
+        let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, new_angle, move_distance);
 
         // Update ant
         self.cache.update_ant(ant.id, |ant| {
-            ant.position = new_position;
+            ant.position = (new_x, new_y);
             ant.angle = new_angle;
             ant.speed = new_speed;
-            ant.state = AntState::wandering;
+            ant.state = AntState::Wandering;
             ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
         });
 
@@ -272,13 +245,13 @@ impl AntBehaviorManager {
 
         // Scouts move faster than regular ants
         let move_distance = ant.speed * 1.2;
-        let new_position = self.move_with_bounds(ant.position, new_angle, move_distance);
+        let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, new_angle, move_distance);
 
         // Lay weak exploration pheromone trail
-        self.create_pheromone_trail(ant.position, ant.colony_id, PheromoneType::exploration, 0.1, None);
+        self.create_pheromone_trail((new_x, new_y), ant.colony_id, PheromoneType::Exploration, 0.1, None);
 
         self.cache.update_ant(ant.id, |a| {
-            a.position = new_position;
+            a.position = (new_x, new_y);
             a.angle = new_angle;
         });
 
@@ -302,11 +275,11 @@ impl AntBehaviorManager {
             angle_to_colony + std::f32::consts::PI / 3.0 + rng.gen_range(-0.25..0.25)
         };
 
-        let new_position = self.move_with_bounds(ant.position, direction, ant.speed);
+        let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, direction, ant.speed);
 
         self.cache.update_ant(ant.id, |a| {
-            a.position = new_position;
-            a.angle = direction;
+            a.position = (new_x, new_y);
+            a.angle = new_angle;
         });
 
         Ok(())
@@ -323,17 +296,17 @@ impl AntBehaviorManager {
             if distance > 0.0 {
                 let normalized_direction = (direction.0 / distance, direction.1 / distance);
                 let new_angle = normalized_direction.1.atan2(normalized_direction.0);
-                let new_position = self.move_with_bounds(
+                let ((new_x, new_y), new_angle) = self.move_with_bounds(
                     ant.position,
                     new_angle,
                     ant.speed,
                 );
 
                 self.cache.update_ant(ant.id, |a| {
-                    a.position = new_position;
+                    a.position = (new_x, new_y);
                     a.angle = new_angle;
-                    a.state = AntState::seeking_food;
-                    a.target = Some(Target::food(food_id));
+                    a.state = AntState::SeekingFood;
+                    a.target = Some(Target::Food(food_id));
                 });
             }
         } else {
@@ -355,24 +328,24 @@ impl AntBehaviorManager {
         let speed_multiplier = 1.0 + (strength * 0.5);
         let move_distance = ant.speed * speed_multiplier;
 
-        let new_position = self.move_with_bounds(ant.position, combined_direction, move_distance);
+        let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, combined_direction, move_distance);
 
         // Check for food while following trail
-        let nearby_food = self.cache.get_food_sources_near_position(new_position, 15.0)
+        let nearby_food = self.cache.get_food_sources_near_position((new_x, new_y), 15.0)
             .into_iter()
             .find(|food| food.amount > 0);
 
         if let Some(food) = nearby_food {
             self.cache.update_ant(ant.id, |a| {
-                a.position = new_position;
-                a.angle = combined_direction;
-                a.state = AntState::seeking_food;
-                a.target = Some(Target::food(food.id));
+                a.position = (new_x, new_y);
+                a.angle = new_angle;
+                a.state = AntState::SeekingFood;
+                a.target = Some(Target::Food(food.id));
             });
         } else {
             self.cache.update_ant(ant.id, |a| {
-                a.position = new_position;
-                a.angle = combined_direction;
+                a.position = (new_x, new_y);
+                a.angle = new_angle;
             });
         }
 
@@ -382,15 +355,15 @@ impl AntBehaviorManager {
     fn move_ant_towards_target(&self, ant: &FastAnt) -> anyhow::Result<()> {
         if let Some(target) = &ant.target {
             let target_pos = match target {
-                Target::food(food_id) => {
+                Target::Food(food_id) => {
                     if let Some(food) = self.cache.food_sources.get(food_id) {
                         food.position
                     } else {
                         return Ok(());
                     }
                 }
-                Target::position(x, y) => (*x as f32, *y as f32),
-                Target::colony(colony_id) => {
+                Target::Position(x, y) => (*x as f32, *y as f32),
+                Target::Colony(colony_id) => {
                     if let Some(colony) = self.cache.colonies.get(colony_id) {
                         colony.center
                     } else {
@@ -430,15 +403,11 @@ impl AntBehaviorManager {
             }
 
             // Move forward
-            let move_distance = new_speed;
-            let new_position = (
-                ant.position.0 + new_angle.cos() * move_distance,
-                ant.position.1 + new_angle.sin() * move_distance,
-            );
+            let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, new_angle, new_speed);
 
             // Update ant
             self.cache.update_ant(ant.id, |ant| {
-                ant.position = new_position;
+                ant.position = (new_x, new_y);
                 ant.angle = new_angle;
                 ant.speed = new_speed;
                 ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
@@ -464,8 +433,8 @@ impl AntBehaviorManager {
         if food_collected > 0 {
             // Update ant to carry food
             self.cache.update_ant(ant.id, |a| {
-                a.state = AntState::carrying_food;
-                a.target = Some(Target::colony(a.colony_id));
+                a.state = AntState::CarryingFood;
+                a.target = Some(Target::Colony(a.colony_id));
                 a.carried_resources.insert("food".to_string(), food_collected);
             });
 
@@ -473,7 +442,7 @@ impl AntBehaviorManager {
             self.create_pheromone_trail(
                 ant.position,
                 ant.colony_id,
-                PheromoneType::food,
+                PheromoneType::Food,
                 0.8,
                 Some(food_id),
             );
@@ -482,7 +451,7 @@ impl AntBehaviorManager {
         } else {
             // No food available, wander
             self.cache.update_ant(ant.id, |a| {
-                a.state = AntState::wandering;
+                a.state = AntState::Wandering;
                 a.target = None;
             });
             tracing::info!("🍎 Food source {} is depleted", food_id);
@@ -511,24 +480,24 @@ impl AntBehaviorManager {
                 if distance > 0.0 {
                     let normalized_direction = (direction.0 / distance, direction.1 / distance);
                     let new_angle = normalized_direction.1.atan2(normalized_direction.0);
-                    let new_position = self.move_with_bounds(
+                    let ((new_x, new_y), new_angle) = self.move_with_bounds(
                         ant.position,
                         new_angle,
                         ant.speed,
                     );
 
                     self.cache.update_ant(ant.id, |a| {
-                        a.position = new_position;
+                        a.position = (new_x, new_y);
                         a.angle = new_angle;
                     });
 
                     // Create home pheromone trail when carrying food
-                    if ant.state == AntState::carrying_food {
+                    if ant.state == AntState::CarryingFood {
                         tracing::info!("🐜 Ant {} is carrying food and is creating home pheromone trail", ant.id);
                         self.create_pheromone_trail(
-                            ant.position,
+                            (new_x, new_y),
                             ant.colony_id,
-                            PheromoneType::home,
+                            PheromoneType::Home,
                             0.5,
                             None,
                         );
@@ -552,7 +521,7 @@ impl AntBehaviorManager {
             // Clear ant's carried resources and set state to wandering
             self.cache.update_ant(ant.id, |a| {
                 a.carried_resources.clear();
-                a.state = AntState::wandering;
+                a.state = AntState::Wandering;
                 a.target = None;
             });
 
@@ -560,7 +529,7 @@ impl AntBehaviorManager {
         } else {
             // No food to deposit, just set to wandering
             self.cache.update_ant(ant.id, |a| {
-                a.state = AntState::wandering;
+                a.state = AntState::Wandering;
                 a.target = None;
             });
         }
@@ -570,7 +539,7 @@ impl AntBehaviorManager {
 
     fn kill_ant(&self, ant_id: i32, _current_tick: i64) {
         self.cache.update_ant(ant_id, |ant| {
-            ant.state = AntState::dead;
+            ant.state = AntState::Dead;
             ant.health = 0;
         });
         tracing::debug!("💀 Ant {} has died", ant_id);
@@ -610,7 +579,7 @@ impl AntBehaviorManager {
             }
 
             // For ants not carrying food, prioritize food pheromone trails
-            if trail.trail_type == PheromoneType::food && trail.strength > 0.1 {
+            if trail.trail_type == PheromoneType::Food && trail.strength > 0.1 {
                 let dx = trail.position.0 - position.0;
                 let dy = trail.position.1 - position.1;
                 let distance = (dx * dx + dy * dy).sqrt();
@@ -647,10 +616,36 @@ impl AntBehaviorManager {
         (dx * dx + dy * dy).sqrt()
     }
 
-    fn move_with_bounds(&self, position: (f32, f32), direction: f32, distance: f32) -> (f32, f32) {
-        let new_x = (position.0 + direction.cos() * distance).clamp(0.0, self.cache.world_bounds.width);
-        let new_y = (position.1 + direction.sin() * distance).clamp(0.0, self.cache.world_bounds.height);
-        (new_x, new_y)
+    fn move_with_bounds(&self, position: (f32, f32), direction: f32, distance: f32) -> ((f32, f32), f32) {
+        let mut new_x = position.0 + direction.cos() * distance;
+        let mut new_y = position.1 + direction.sin() * distance;
+        let mut new_direction = direction;
+
+        // Handle horizontal boundaries with reflection
+        if new_x < 0.0 {
+            new_x = -new_x;
+            new_direction = std::f32::consts::PI - new_direction;
+        } else if new_x > self.cache.world_bounds.width {
+            new_x = self.cache.world_bounds.width - (new_x - self.cache.world_bounds.width);
+            new_direction = std::f32::consts::PI - new_direction;
+        }
+
+        // Handle vertical boundaries with reflection
+        if new_y < 0.0 {
+            new_y = -new_y;
+            new_direction = -new_direction;
+        } else if new_y > self.cache.world_bounds.height {
+            new_y = self.cache.world_bounds.height - (new_y - self.cache.world_bounds.height);
+            new_direction = -new_direction;
+        }
+
+        // Normalize direction
+        new_direction = new_direction % (2.0 * std::f32::consts::PI);
+        if new_direction < 0.0 {
+            new_direction += 2.0 * std::f32::consts::PI;
+        }
+
+        ((new_x, new_y), new_direction)
     }
 }
 
