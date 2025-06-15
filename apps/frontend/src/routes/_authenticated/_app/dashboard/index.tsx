@@ -100,15 +100,10 @@ const SimulationCard = ({ simulation }: { simulation: Simulation }) => {
           <Link
             to="/simulation/$id"
             params={{ id: simulation.id }}
-            className="flex-1 bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-center"
+            className="flex-1 bg-black text-white text-sm px-4 py-2 rounded-md hover:bg-gray-800 transition-colors text-center"
           >
             View Simulation
           </Link>
-          <button 
-            type="button"
-            className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-            Settings
-          </button>
         </div>
       </div>
     </div>
