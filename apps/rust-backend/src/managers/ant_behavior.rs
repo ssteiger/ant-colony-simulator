@@ -454,8 +454,10 @@ impl AntBehaviorManager {
         
         self.cache.update_food_source(food_id, |food| {
             if food.amount > 0 {
-                food_collected = 1.min(food.amount);
+                // Collect up to 5 food units per collection
+                food_collected = 5.min(food.amount);
                 food.amount -= food_collected;
+                tracing::info!("🍎 Food source {} amount reduced to {}", food_id, food.amount);
             }
         });
 
@@ -476,13 +478,14 @@ impl AntBehaviorManager {
                 Some(food_id),
             );
 
-            tracing::debug!("🐜 Ant {} collected {} food from source {}", ant.id, food_collected, food_id);
+            tracing::info!("🐜 Ant {} collected {} food from source {}", ant.id, food_collected, food_id);
         } else {
             // No food available, wander
             self.cache.update_ant(ant.id, |a| {
                 a.state = AntState::wandering;
                 a.target = None;
             });
+            tracing::info!("🍎 Food source {} is depleted", food_id);
         }
 
         Ok(())

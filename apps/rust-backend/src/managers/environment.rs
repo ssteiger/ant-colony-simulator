@@ -37,18 +37,22 @@ impl EnvironmentManager {
         for mut entry in self.cache.food_sources.iter_mut() {
             let food = entry.value_mut();
             
+            // Only regenerate every 10 ticks and if food is renewable
             if food.is_renewable && food.amount < food.max_amount && food.regeneration_rate > 0.0 {
-                let new_amount = (food.amount as f32 + food.regeneration_rate).min(food.max_amount as f32) as i32;
+                // Reduce regeneration rate by 10x
+                let regeneration_amount = food.regeneration_rate / 10.0;
+                let new_amount = (food.amount as f32 + regeneration_amount).min(food.max_amount as f32) as i32;
                 
                 if new_amount > food.amount {
                     food.amount = new_amount;
                     regenerated_count += 1;
+                    tracing::info!("🍎 Food source {} regenerated to {}", entry.key(), new_amount);
                 }
             }
         }
 
         if regenerated_count > 0 {
-            tracing::debug!("🌍 Regenerated {} food sources", regenerated_count);
+            tracing::info!("🌍 Regenerated {} food sources", regenerated_count);
         }
     }
 
