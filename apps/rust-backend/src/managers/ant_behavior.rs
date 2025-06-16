@@ -336,12 +336,27 @@ impl AntBehaviorManager {
             .find(|food| food.amount > 0);
 
         if let Some(food) = nearby_food {
-            self.cache.update_ant(ant.id, |a| {
-                a.position = (new_x, new_y);
-                a.angle = new_angle;
-                a.state = AntState::SeekingFood;
-                a.target = Some(Target::Food(food.id));
-            });
+            // Only switch to food seeking if we're not already seeking food
+            // or if we're seeking a different food source
+            let should_switch = match &ant.target {
+                Some(Target::Food(current_food_id)) => *current_food_id != food.id,
+                _ => true,
+            };
+
+            if should_switch {
+                self.cache.update_ant(ant.id, |a| {
+                    a.position = (new_x, new_y);
+                    a.angle = new_angle;
+                    a.state = AntState::SeekingFood;
+                    a.target = Some(Target::Food(food.id));
+                });
+            } else {
+                // Continue with current food seeking behavior
+                self.cache.update_ant(ant.id, |a| {
+                    a.position = (new_x, new_y);
+                    a.angle = new_angle;
+                });
+            }
         } else {
             self.cache.update_ant(ant.id, |a| {
                 a.position = (new_x, new_y);
