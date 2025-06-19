@@ -123,6 +123,7 @@ impl AntBehaviorManager {
                     ant.position,
                     ant.colony_id,
                     search_radius,
+                    ant.id,
                 );
 
                 let follow_threshold = match ant_type.role.as_str() {
@@ -139,11 +140,11 @@ impl AntBehaviorManager {
                 // Role-specific default behavior
                 match ant_type.role.as_str() {
                     "scout" => {
-                        tracing::info!("🐜 Ant {} is a scout and is exploring", ant.id);
+                        //tracing::info!("🐜 Ant {} is a scout and is exploring", ant.id);
                         Ok(AntAction::Explore)
                     }
                     "soldier" => {
-                        tracing::info!("🐜 Ant {} is a soldier and is patrolling", ant.id);
+                        //tracing::info!("🐜 Ant {} is a soldier and is patrolling", ant.id);
                         Ok(AntAction::Patrol)
                     }
                     _ => Ok(AntAction::Wander),
@@ -159,6 +160,7 @@ impl AntBehaviorManager {
                             if distance < 5.0 {
                                 return Ok(AntAction::CollectFood(*food_id));
                             } else {
+                                // Stay focused on moving to the food source
                                 return Ok(AntAction::MoveToTarget);
                             }
                         }
@@ -248,7 +250,7 @@ impl AntBehaviorManager {
         let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, new_angle, move_distance);
 
         // Lay weak exploration pheromone trail
-        self.create_pheromone_trail((new_x, new_y), ant.colony_id, PheromoneType::Exploration, 0.1, None);
+        self.create_pheromone_trail((new_x, new_y), ant.colony_id, PheromoneType::Exploration, 0.1, None, ant.id);
 
         self.cache.update_ant(ant.id, |a| {
             a.position = (new_x, new_y);
@@ -460,6 +462,7 @@ impl AntBehaviorManager {
                 PheromoneType::Food,
                 0.8,
                 Some(food_id),
+                ant.id,
             );
 
             tracing::info!("🐜 Ant {} collected {} food from source {}", ant.id, food_collected, food_id);
@@ -478,7 +481,7 @@ impl AntBehaviorManager {
     fn move_ant_towards_colony(&self, ant: &FastAnt, current_tick: i64) -> anyhow::Result<()> {
         if let Some(colony) = self.cache.get_colony(&ant.colony_id) {
             let distance_to_colony = self.distance(ant.position, colony.center);
-            tracing::info!("🐜 Ant {} is moving towards colony at distance {} from position ({}, {})", ant.id, distance_to_colony, ant.position.0, ant.position.1);
+            //tracing::info!("🐜 Ant {} is moving towards colony at distance {} from position ({}, {})", ant.id, distance_to_colony, ant.position.0, ant.position.1);
             
             if distance_to_colony < colony.radius {
                 tracing::info!("🐜 Ant {} reached colony and is depositing food", ant.id);
@@ -515,6 +518,7 @@ impl AntBehaviorManager {
                             PheromoneType::Home,
                             0.5,
                             None,
+                            ant.id,
                         );
                     }
                 }
@@ -533,14 +537,30 @@ impl AntBehaviorManager {
                 colony.resources.insert("food".to_string(), current_food + food_amount);
             });
 
-            // Clear ant's carried resources and set state to wandering
+            // Get the food source ID from the ant's target
+            let food_source_id = match &ant.target {
+                Some(Target::Food(id)) => Some(*id),
+                _ => None,
+            };
+
+            tracing::info!("food_source_id: {:?}", food_source_id);
+            
+            // Clear ant's carried resources
             self.cache.update_ant(ant.id, |a| {
                 a.carried_resources.clear();
-                a.state = AntState::Wandering;
-                a.target = None;
+                
+                // If we have a valid food source ID, return to it
+                if let Some(food_id) = food_source_id {
+                    tracing::info!("🐜 Ant {} deposited {} food to colony {} and is returning to food source {}", ant.id, food_amount, ant.colony_id, food_id);
+                    a.state = AntState::SeekingFood;
+                    a.target = Some(Target::Food(food_id));
+                } else {
+                    // No food source to return to, start wandering
+                    tracing::info!("🐜 Ant {} deposited {} food to colony {} and is starting to wander", ant.id, food_amount, ant.colony_id);
+                    a.state = AntState::Wandering;
+                    a.target = None;
+                }
             });
-
-            tracing::debug!("🐜 Ant {} deposited {} food to colony {}", ant.id, food_amount, ant.colony_id);
         } else {
             // No food to deposit, just set to wandering
             self.cache.update_ant(ant.id, |a| {
@@ -560,7 +580,7 @@ impl AntBehaviorManager {
         tracing::debug!("💀 Ant {} has died", ant_id);
     }
 
-    fn create_pheromone_trail(&self, position: (f32, f32), colony_id: i32, trail_type: PheromoneType, strength: f32, target_food_id: Option<i32>) {
+    fn create_pheromone_trail(&self, position: (f32, f32), colony_id: i32, trail_type: PheromoneType, strength: f32, target_food_id: Option<i32>, ant_id: i32) {
         let mut rng = SmallRng::from_entropy();
         let trail = FastPheromoneTrail {
             id: rng.gen::<i32>().abs(), // Temporary ID
@@ -571,6 +591,7 @@ impl AntBehaviorManager {
             decay_rate: 0.0005, // Reduced from 0.005 to 0.0005 (0.05% per tick)
             expires_at: 20000, // Increased from 2000 to 20000 ticks
             target_food_id,
+            ant_id,
         };
 
         self.cache.insert_pheromone_trail(trail);
@@ -581,19 +602,60 @@ impl AntBehaviorManager {
         position: (f32, f32),
         colony_id: i32,
         radius: f32,
+        ant_id: i32,
     ) -> (f32, f32) {
         let trails = self.cache.get_pheromone_trails_near_position(position, radius);
         let mut total_influence_x = 0.0;
         let mut total_influence_y = 0.0;
         let mut total_strength = 0.0;
 
+        // First pass: Look for own food trails with higher weight
+        for trail in &trails {
+            // Only consider trails from the same colony
+            if trail.colony_id != colony_id {
+                continue;
+            }
+
+            // Prioritize own food trails
+            if trail.trail_type == PheromoneType::Food {
+                let dx = trail.position.0 - position.0;
+                let dy = trail.position.1 - position.1;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance > 0.0 && distance <= radius {
+                    let normalized_distance = distance / radius;
+                    let distance_decay = (-normalized_distance * 3.0).exp();
+                    
+                    // Give higher weight to own trails
+                    let own_trail_multiplier = if trail.ant_id == ant_id { 2.0 } else { 1.0 };
+                    let influence = trail.strength * distance_decay * own_trail_multiplier;
+
+                    let dir_x = dx / distance;
+                    let dir_y = dy / distance;
+
+                    total_influence_x += dir_x * influence;
+                    total_influence_y += dir_y * influence;
+                    total_strength += influence;
+                }
+            }
+        }
+
+        // If we found strong own trails, return immediately
+        if total_strength > 0.2 {
+            return (
+                total_influence_y.atan2(total_influence_x),
+                total_strength,
+            );
+        }
+
+        // Second pass: Look for other food trails if no strong own trails found
         for trail in trails {
             // Only consider trails from the same colony
             if trail.colony_id != colony_id {
                 continue;
             }
 
-            // For ants not carrying food, prioritize food pheromone trails
+            // Consider other food pheromone trails
             if trail.trail_type == PheromoneType::Food && trail.strength > 0.1 {
                 let dx = trail.position.0 - position.0;
                 let dy = trail.position.1 - position.1;

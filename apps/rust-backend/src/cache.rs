@@ -144,7 +144,7 @@ impl SimulationCache {
 
     // Pheromone operations
     pub fn insert_pheromone_trail(&self, trail: FastPheromoneTrail) {
-        tracing::info!("💨 Inserting pheromone trail {}", trail.id);
+        //tracing::info!("💨 Inserting pheromone trail {}", trail.id);
         self.pheromone_trails.insert(trail.id, trail);
     }
 

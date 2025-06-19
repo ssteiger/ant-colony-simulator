@@ -108,6 +108,7 @@ pub struct PheromoneTrail {
     pub expires_at: Option<DateTime<Utc>>,
     pub source_ant_id: Option<i32>,
     pub target_food_id: Option<i32>,
+    pub ant_id: i32,
 }
 
 // Runtime optimized structures for in-memory processing
@@ -160,6 +161,7 @@ pub struct FastPheromoneTrail {
     pub decay_rate: f32,
     pub expires_at: i64, // Tick when it expires
     pub target_food_id: Option<i32>,
+    pub ant_id: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
