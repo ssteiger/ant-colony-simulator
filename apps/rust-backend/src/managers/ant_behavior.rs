@@ -294,15 +294,23 @@ impl AntBehaviorManager {
                 food.position.1 - ant.position.1,
             );
             let distance = (direction.0 * direction.0 + direction.1 * direction.1).sqrt();
-            
+
             if distance > 0.0 {
                 let normalized_direction = (direction.0 / distance, direction.1 / distance);
-                let new_angle = normalized_direction.1.atan2(normalized_direction.0);
-                let ((new_x, new_y), new_angle) = self.move_with_bounds(
-                    ant.position,
-                    new_angle,
-                    ant.speed,
-                );
+                let mut new_angle = normalized_direction.1.atan2(normalized_direction.0);
+
+                // Blend in pheromone influence if available
+                let (trail_dir, strength) =
+                    self.get_pheromone_influence(ant.position, ant.colony_id, 30.0, ant.id);
+                if strength > 0.05 {
+                    let weight = strength.min(1.0);
+                    let blended_x = new_angle.cos() * (1.0 - weight) + trail_dir.cos() * weight;
+                    let blended_y = new_angle.sin() * (1.0 - weight) + trail_dir.sin() * weight;
+                    new_angle = blended_y.atan2(blended_x);
+                }
+
+                let ((new_x, new_y), new_angle) =
+                    self.move_with_bounds(ant.position, new_angle, ant.speed);
 
                 self.cache.update_ant(ant.id, |a| {
                     a.position = (new_x, new_y);
@@ -310,6 +318,16 @@ impl AntBehaviorManager {
                     a.state = AntState::SeekingFood;
                     a.target = Some(Target::Food(food_id));
                 });
+
+                // Drop a home pheromone trail while moving towards food
+                self.create_pheromone_trail(
+                    (new_x, new_y),
+                    ant.colony_id,
+                    PheromoneType::Home,
+                    0.3,
+                    None,
+                    ant.id,
+                );
             }
         } else {
             // Food source no longer exists, wander
@@ -497,25 +515,32 @@ impl AntBehaviorManager {
                 
                 if distance > 0.0 {
                     let normalized_direction = (direction.0 / distance, direction.1 / distance);
-                    let new_angle = normalized_direction.1.atan2(normalized_direction.0);
-                    let ((new_x, new_y), new_angle) = self.move_with_bounds(
-                        ant.position,
-                        new_angle,
-                        ant.speed,
-                    );
+                    let mut new_angle = normalized_direction.1.atan2(normalized_direction.0);
+
+                    // Blend in pheromone influence from food trails
+                    let (trail_dir, strength) =
+                        self.get_pheromone_influence(ant.position, ant.colony_id, 30.0, ant.id);
+                    if strength > 0.05 {
+                        let weight = strength.min(1.0);
+                        let blended_x = new_angle.cos() * (1.0 - weight) + trail_dir.cos() * weight;
+                        let blended_y = new_angle.sin() * (1.0 - weight) + trail_dir.sin() * weight;
+                        new_angle = blended_y.atan2(blended_x);
+                    }
+
+                    let ((new_x, new_y), new_angle) =
+                        self.move_with_bounds(ant.position, new_angle, ant.speed);
 
                     self.cache.update_ant(ant.id, |a| {
                         a.position = (new_x, new_y);
                         a.angle = new_angle;
                     });
 
-                    // Create home pheromone trail when carrying food
+                    // Create food pheromone trail while returning with food
                     if ant.state == AntState::CarryingFood {
-                        tracing::info!("🐜 Ant {} is carrying food and is creating home pheromone trail", ant.id);
                         self.create_pheromone_trail(
                             (new_x, new_y),
                             ant.colony_id,
-                            PheromoneType::Home,
+                            PheromoneType::Food,
                             0.5,
                             None,
                             ant.id,
@@ -551,9 +576,21 @@ impl AntBehaviorManager {
                 
                 // If we have a valid food source ID, return to it
                 if let Some(food_id) = food_source_id {
-                    tracing::info!("🐜 Ant {} deposited {} food to colony {} and is returning to food source {}", ant.id, food_amount, ant.colony_id, food_id);
-                    a.state = AntState::SeekingFood;
-                    a.target = Some(Target::Food(food_id));
+                    let remaining = self
+                        .cache
+                        .food_sources
+                        .get(&food_id)
+                        .map(|f| f.amount)
+                        .unwrap_or(0);
+                    if remaining > 0 {
+                        tracing::info!("🐜 Ant {} deposited {} food to colony {} and is returning to food source {}", ant.id, food_amount, ant.colony_id, food_id);
+                        a.state = AntState::SeekingFood;
+                        a.target = Some(Target::Food(food_id));
+                    } else {
+                        tracing::info!("🐜 Ant {} deposited food but source {} is depleted", ant.id, food_id);
+                        a.state = AntState::Wandering;
+                        a.target = None;
+                    }
                 } else {
                     // No food source to return to, start wandering
                     tracing::info!("🐜 Ant {} deposited {} food to colony {} and is starting to wander", ant.id, food_amount, ant.colony_id);
@@ -561,6 +598,18 @@ impl AntBehaviorManager {
                     a.target = None;
                 }
             });
+
+            // Reinforce home pheromone at the colony entrance
+            if let Some(colony) = self.cache.get_colony(&ant.colony_id) {
+                self.create_pheromone_trail(
+                    colony.center,
+                    ant.colony_id,
+                    PheromoneType::Home,
+                    0.6,
+                    None,
+                    ant.id,
+                );
+            }
         } else {
             // No food to deposit, just set to wandering
             self.cache.update_ant(ant.id, |a| {
