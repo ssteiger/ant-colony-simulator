@@ -108,6 +108,7 @@ impl ColonyManager {
             target: None,
             carried_resources: HashMap::new(),
             last_action_tick: 0,
+            last_food_source_id: None,
         };
 
         self.cache.insert_ant(fast_ant);
