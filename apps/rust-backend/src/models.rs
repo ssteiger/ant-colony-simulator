@@ -127,6 +127,7 @@ pub struct FastAnt {
     pub target: Option<Target>,
     pub carried_resources: HashMap<String, i32>,
     pub last_action_tick: i64,
+    pub last_food_source_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

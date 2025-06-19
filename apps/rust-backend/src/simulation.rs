@@ -119,6 +119,7 @@ impl AntColonySimulator {
                 target: Self::parse_ant_target(&ant.target_type, ant.target_id, ant.target_x, ant.target_y),
                 carried_resources: Self::parse_carried_resources(&ant.carried_resources),
                 last_action_tick: 0,
+                last_food_source_id: None,
             };
             cache.insert_ant(fast_ant);
         }

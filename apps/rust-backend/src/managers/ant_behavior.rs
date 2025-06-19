@@ -469,8 +469,10 @@ impl AntBehaviorManager {
             // Update ant to carry food
             self.cache.update_ant(ant.id, |a| {
                 a.state = AntState::CarryingFood;
-                a.target = Some(Target::Colony(a.colony_id));
+                // Preserve the food source as the target so we can return later
+                a.target = Some(Target::Food(food_id));
                 a.carried_resources.insert("food".to_string(), food_collected);
+                a.last_food_source_id = Some(food_id);
             });
 
             // Create food pheromone trail
@@ -562,10 +564,10 @@ impl AntBehaviorManager {
                 colony.resources.insert("food".to_string(), current_food + food_amount);
             });
 
-            // Get the food source ID from the ant's target
+            // Determine the food source we last visited
             let food_source_id = match &ant.target {
                 Some(Target::Food(id)) => Some(*id),
-                _ => None,
+                _ => ant.last_food_source_id,
             };
 
             tracing::info!("food_source_id: {:?}", food_source_id);
@@ -586,16 +588,19 @@ impl AntBehaviorManager {
                         tracing::info!("🐜 Ant {} deposited {} food to colony {} and is returning to food source {}", ant.id, food_amount, ant.colony_id, food_id);
                         a.state = AntState::SeekingFood;
                         a.target = Some(Target::Food(food_id));
+                        a.last_food_source_id = Some(food_id);
                     } else {
                         tracing::info!("🐜 Ant {} deposited food but source {} is depleted", ant.id, food_id);
                         a.state = AntState::Wandering;
                         a.target = None;
+                        a.last_food_source_id = None;
                     }
                 } else {
                     // No food source to return to, start wandering
                     tracing::info!("🐜 Ant {} deposited {} food to colony {} and is starting to wander", ant.id, food_amount, ant.colony_id);
                     a.state = AntState::Wandering;
                     a.target = None;
+                    a.last_food_source_id = None;
                 }
             });
 
