@@ -12,8 +12,6 @@ pub struct AntBehaviorManager {
 impl AntBehaviorManager {
     // Movement constraints as associated constants
     const MAX_TURN_RATE: f32 = 0.1; // Maximum radians per tick
-    const ACCELERATION: f32 = 0.2; // Speed change per tick
-    const DECELERATION: f32 = 0.1; // Speed change per tick
 
     pub fn new(cache: Arc<SimulationCache>) -> Self {
         Self { cache }
@@ -211,32 +209,15 @@ impl AntBehaviorManager {
                 ant.id, ant.angle, new_angle, angle_change);
         }
 
-        // Gradually adjust speed
-        let mut new_speed = ant.speed;
-        if rng.gen_bool(0.1) {
-            // Randomly accelerate or decelerate
-            if rng.gen_bool(0.5) {
-                let old_speed = new_speed;
-                new_speed = (new_speed + Self::ACCELERATION).min(ant.speed * 1.5);
-                tracing::debug!("⚡ Ant {} speed increase: {:.2} → {:.2} (reason: random acceleration)", 
-                    ant.id, old_speed, new_speed);
-            } else {
-                let old_speed = new_speed;
-                new_speed = (new_speed - Self::DECELERATION).max(ant.speed * 0.5);
-                tracing::debug!("🐌 Ant {} speed decrease: {:.2} → {:.2} (reason: random deceleration)", 
-                    ant.id, old_speed, new_speed);
-            }
-        }
-
         // Move forward with new speed
-        let move_distance = new_speed;
+        let move_distance = ant.speed;
         let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, new_angle, move_distance);
 
         // Update ant
         self.cache.update_ant(ant.id, |ant| {
             ant.position = (new_x, new_y);
             ant.angle = new_angle;
-            ant.speed = new_speed;
+            ant.speed = ant.speed;
             ant.state = AntState::Wandering;
             ant.last_action_tick = self.cache.current_tick.try_read().map(|t| *t).unwrap_or(0);
         });
@@ -474,16 +455,21 @@ impl AntBehaviorManager {
             let distance = self.distance(ant.position, target_pos);
             let mut new_speed = ant.speed;
             
+            // Get base speed from ant type for proper limits
+            let base_speed = self.cache.get_ant_type(&ant.ant_type_id)
+                .map(|ant_type| ant_type.base_speed as f32)
+                .unwrap_or(1.0);
+            
             if distance < 20.0 {
                 // Slow down when approaching target
                 let old_speed = new_speed;
-                new_speed = (new_speed - Self::DECELERATION).max(ant.speed * 0.5);
+                new_speed = (new_speed - 0.1).max(base_speed * 0.5);
                 tracing::debug!("🐌 Ant {} slowing down near target: {:.2} → {:.2} (distance: {:.1}, reason: approaching target)", 
                     ant.id, old_speed, new_speed, distance);
             } else {
                 // Accelerate when far from target
                 let old_speed = new_speed;
-                new_speed = (new_speed + Self::ACCELERATION).min(ant.speed * 1.5);
+                new_speed = (new_speed + 0.2).min(base_speed * 1.5);
                 tracing::debug!("⚡ Ant {} accelerating towards target: {:.2} → {:.2} (distance: {:.1}, reason: far from target)", 
                     ant.id, old_speed, new_speed, distance);
             }
