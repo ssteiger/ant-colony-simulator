@@ -570,16 +570,16 @@ impl AntBehaviorManager {
                     let normalized_direction = (direction.0 / distance, direction.1 / distance);
                     let mut new_angle = normalized_direction.1.atan2(normalized_direction.0);
 
-                    // Blend in pheromone influence from food trails
+                    // Only blend with home pheromone trails when returning to colony
                     let (trail_dir, strength) =
-                        self.get_pheromone_influence(ant.position, ant.colony_id, 30.0, ant.id);
+                        self.get_home_pheromone_influence(ant.position, ant.colony_id, 30.0, ant.id);
                     if strength > 0.05 {
-                        let weight = strength.min(1.0);
+                        let weight = strength.min(0.3); // Reduced weight to prioritize colony direction
                         let blended_x = new_angle.cos() * (1.0 - weight) + trail_dir.cos() * weight;
                         let blended_y = new_angle.sin() * (1.0 - weight) + trail_dir.sin() * weight;
                         let old_angle = new_angle;
                         new_angle = blended_y.atan2(blended_x);
-                        tracing::debug!("🏠 Ant {} direction blended with pheromone while returning: {:.2} → {:.2} (pheromone strength: {:.2}, weight: {:.2})", 
+                        tracing::debug!("🏠 Ant {} direction blended with home pheromone while returning: {:.2} → {:.2} (pheromone strength: {:.2}, weight: {:.2})", 
                             ant.id, old_angle, new_angle, strength, weight);
                     } else {
                         tracing::debug!("🏠 Ant {} direction change: {:.2} → {:.2} (reason: returning to colony)", 
@@ -782,6 +782,59 @@ impl AntBehaviorManager {
                     let normalized_distance = distance / radius;
                     let distance_decay = (-normalized_distance * 3.0).exp();
                     let influence = trail.strength * distance_decay;
+
+                    let dir_x = dx / distance;
+                    let dir_y = dy / distance;
+
+                    total_influence_x += dir_x * influence;
+                    total_influence_y += dir_y * influence;
+                    total_strength += influence;
+                }
+            }
+        }
+
+        if total_strength == 0.0 {
+            (0.0, 0.0)
+        } else {
+            (
+                total_influence_y.atan2(total_influence_x),
+                total_strength,
+            )
+        }
+    }
+
+    fn get_home_pheromone_influence(
+        &self,
+        position: (f32, f32),
+        colony_id: i32,
+        radius: f32,
+        ant_id: i32,
+    ) -> (f32, f32) {
+        let trails = self.cache.get_pheromone_trails_near_position(position, radius);
+        let mut total_influence_x = 0.0;
+        let mut total_influence_y = 0.0;
+        let mut total_strength = 0.0;
+
+        // Only consider home pheromone trails when returning to colony
+        for trail in &trails {
+            // Only consider trails from the same colony
+            if trail.colony_id != colony_id {
+                continue;
+            }
+
+            // Only consider home pheromone trails
+            if trail.trail_type == PheromoneType::Home {
+                let dx = trail.position.0 - position.0;
+                let dy = trail.position.1 - position.1;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance > 0.0 && distance <= radius {
+                    let normalized_distance = distance / radius;
+                    let distance_decay = (-normalized_distance * 3.0).exp();
+                    
+                    // Give higher weight to own trails
+                    let own_trail_multiplier = if trail.ant_id == ant_id { 2.0 } else { 1.0 };
+                    let influence = trail.strength * distance_decay * own_trail_multiplier;
 
                     let dir_x = dx / distance;
                     let dir_y = dy / distance;
