@@ -206,6 +206,9 @@ impl AntBehaviorManager {
             // Limit the turn rate
             let angle_change = desired_angle_change.max(-Self::MAX_TURN_RATE).min(Self::MAX_TURN_RATE);
             new_angle += angle_change;
+            
+            tracing::debug!("🔄 Ant {} random direction change: {:.2} → {:.2} (change: {:.2}, reason: random wandering)", 
+                ant.id, ant.angle, new_angle, angle_change);
         }
 
         // Gradually adjust speed
@@ -213,9 +216,15 @@ impl AntBehaviorManager {
         if rng.gen_bool(0.1) {
             // Randomly accelerate or decelerate
             if rng.gen_bool(0.5) {
+                let old_speed = new_speed;
                 new_speed = (new_speed + Self::ACCELERATION).min(ant.speed * 1.5);
+                tracing::debug!("⚡ Ant {} speed increase: {:.2} → {:.2} (reason: random acceleration)", 
+                    ant.id, old_speed, new_speed);
             } else {
+                let old_speed = new_speed;
                 new_speed = (new_speed - Self::DECELERATION).max(ant.speed * 0.5);
+                tracing::debug!("🐌 Ant {} speed decrease: {:.2} → {:.2} (reason: random deceleration)", 
+                    ant.id, old_speed, new_speed);
             }
         }
 
@@ -243,11 +252,17 @@ impl AntBehaviorManager {
         
         // 10% chance for major direction change (exploration)
         if rng.gen_bool(0.1) {
+            let old_angle = new_angle;
             new_angle = rng.gen_range(0.0..std::f32::consts::TAU);
+            tracing::debug!("🧭 Ant {} scout major direction change: {:.2} → {:.2} (reason: exploration behavior)", 
+                ant.id, old_angle, new_angle);
         } else if rng.gen_bool(0.2) {
             // 20% chance for minor direction change
+            let old_angle = new_angle;
             let angle_change = rng.gen_range(-0.5..0.5);
             new_angle += angle_change;
+            tracing::debug!("🧭 Ant {} scout minor direction change: {:.2} → {:.2} (change: {:.2}, reason: exploration adjustment)", 
+                ant.id, old_angle, new_angle, angle_change);
         }
 
         // Scouts move faster than regular ants
@@ -275,11 +290,17 @@ impl AntBehaviorManager {
 
         let direction = if distance_from_colony > patrol_radius {
             // Return to patrol area
-            (colony.center.1 - ant.position.1).atan2(colony.center.0 - ant.position.0)
+            let return_direction = (colony.center.1 - ant.position.1).atan2(colony.center.0 - ant.position.0);
+            tracing::debug!("🛡️ Ant {} soldier direction change: {:.2} → {:.2} (reason: returning to patrol area, distance from colony: {:.1})", 
+                ant.id, ant.angle, return_direction, distance_from_colony);
+            return_direction
         } else {
             // Circular patrol
             let angle_to_colony = (ant.position.1 - colony.center.1).atan2(ant.position.0 - colony.center.0);
-            angle_to_colony + std::f32::consts::PI / 3.0 + rng.gen_range(-0.25..0.25)
+            let patrol_direction = angle_to_colony + std::f32::consts::PI / 3.0 + rng.gen_range(-0.25..0.25);
+            tracing::debug!("🛡️ Ant {} soldier direction change: {:.2} → {:.2} (reason: circular patrol around colony)", 
+                ant.id, ant.angle, patrol_direction);
+            patrol_direction
         };
 
         let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, direction, ant.speed);
@@ -311,7 +332,13 @@ impl AntBehaviorManager {
                     let weight = strength.min(1.0);
                     let blended_x = new_angle.cos() * (1.0 - weight) + trail_dir.cos() * weight;
                     let blended_y = new_angle.sin() * (1.0 - weight) + trail_dir.sin() * weight;
+                    let old_angle = new_angle;
                     new_angle = blended_y.atan2(blended_x);
+                    tracing::debug!("🍎 Ant {} direction blended with pheromone: {:.2} → {:.2} (pheromone strength: {:.2}, weight: {:.2})", 
+                        ant.id, old_angle, new_angle, strength, weight);
+                } else {
+                    tracing::debug!("🍎 Ant {} direction change: {:.2} → {:.2} (reason: moving towards food source {})", 
+                        ant.id, ant.angle, new_angle, food_id);
                 }
 
                 let ((new_x, new_y), new_angle) =
@@ -349,9 +376,17 @@ impl AntBehaviorManager {
         let random_angle = rng.gen_range(-0.25..0.25) * std::f32::consts::PI;
         let combined_direction = direction + (random_angle * random_weight);
 
+        tracing::debug!("🦨 Ant {} following pheromone trail: {:.2} → {:.2} (pheromone direction: {:.2}, strength: {:.2}, random factor: {:.2})", 
+            ant.id, ant.angle, combined_direction, direction, strength, random_angle);
+
         // Speed boost on strong trails
         let speed_multiplier = 1.0 + (strength * 0.5);
         let move_distance = ant.speed * speed_multiplier;
+        
+        if speed_multiplier != 1.0 {
+            tracing::debug!("⚡ Ant {} speed boost on pheromone trail: {:.2} → {:.2} (multiplier: {:.2}, reason: strong pheromone trail)", 
+                ant.id, ant.speed, ant.speed * speed_multiplier, speed_multiplier);
+        }
 
         let ((new_x, new_y), new_angle) = self.move_with_bounds(ant.position, combined_direction, move_distance);
 
@@ -430,16 +465,27 @@ impl AntBehaviorManager {
             let angle_change = angle_diff.max(-Self::MAX_TURN_RATE).min(Self::MAX_TURN_RATE);
             let new_angle = ant.angle + angle_change;
 
+            if angle_change != 0.0 {
+                tracing::debug!("🎯 Ant {} turning towards target: {:.2} → {:.2} (change: {:.2}, desired: {:.2}, reason: target navigation)", 
+                    ant.id, ant.angle, new_angle, angle_change, desired_angle);
+            }
+
             // Adjust speed based on distance to target
             let distance = self.distance(ant.position, target_pos);
             let mut new_speed = ant.speed;
             
             if distance < 20.0 {
                 // Slow down when approaching target
+                let old_speed = new_speed;
                 new_speed = (new_speed - Self::DECELERATION).max(ant.speed * 0.5);
+                tracing::debug!("🐌 Ant {} slowing down near target: {:.2} → {:.2} (distance: {:.1}, reason: approaching target)", 
+                    ant.id, old_speed, new_speed, distance);
             } else {
                 // Accelerate when far from target
+                let old_speed = new_speed;
                 new_speed = (new_speed + Self::ACCELERATION).min(ant.speed * 1.5);
+                tracing::debug!("⚡ Ant {} accelerating towards target: {:.2} → {:.2} (distance: {:.1}, reason: far from target)", 
+                    ant.id, old_speed, new_speed, distance);
             }
 
             // Move forward
@@ -531,7 +577,13 @@ impl AntBehaviorManager {
                         let weight = strength.min(1.0);
                         let blended_x = new_angle.cos() * (1.0 - weight) + trail_dir.cos() * weight;
                         let blended_y = new_angle.sin() * (1.0 - weight) + trail_dir.sin() * weight;
+                        let old_angle = new_angle;
                         new_angle = blended_y.atan2(blended_x);
+                        tracing::debug!("🏠 Ant {} direction blended with pheromone while returning: {:.2} → {:.2} (pheromone strength: {:.2}, weight: {:.2})", 
+                            ant.id, old_angle, new_angle, strength, weight);
+                    } else {
+                        tracing::debug!("🏠 Ant {} direction change: {:.2} → {:.2} (reason: returning to colony)", 
+                            ant.id, ant.angle, new_angle);
                     }
 
                     let ((new_x, new_y), new_angle) =
@@ -762,29 +814,42 @@ impl AntBehaviorManager {
         let mut new_x = position.0 + direction.cos() * distance;
         let mut new_y = position.1 + direction.sin() * distance;
         let mut new_direction = direction;
+        let mut boundary_hit = false;
 
         // Handle horizontal boundaries with reflection
         if new_x < 0.0 {
             new_x = -new_x;
             new_direction = std::f32::consts::PI - new_direction;
+            boundary_hit = true;
+            tracing::debug!("🌍 Boundary collision: Ant hit left boundary at x={}, reflected to x={}", position.0, new_x);
         } else if new_x > self.cache.world_bounds.width {
             new_x = self.cache.world_bounds.width - (new_x - self.cache.world_bounds.width);
             new_direction = std::f32::consts::PI - new_direction;
+            boundary_hit = true;
+            tracing::debug!("🌍 Boundary collision: Ant hit right boundary at x={}, reflected to x={}", position.0, new_x);
         }
 
         // Handle vertical boundaries with reflection
         if new_y < 0.0 {
             new_y = -new_y;
             new_direction = -new_direction;
+            boundary_hit = true;
+            tracing::debug!("🌍 Boundary collision: Ant hit top boundary at y={}, reflected to y={}", position.1, new_y);
         } else if new_y > self.cache.world_bounds.height {
             new_y = self.cache.world_bounds.height - (new_y - self.cache.world_bounds.height);
             new_direction = -new_direction;
+            boundary_hit = true;
+            tracing::debug!("🌍 Boundary collision: Ant hit bottom boundary at y={}, reflected to y={}", position.1, new_y);
         }
 
         // Normalize direction
         new_direction = new_direction % (2.0 * std::f32::consts::PI);
         if new_direction < 0.0 {
             new_direction += 2.0 * std::f32::consts::PI;
+        }
+
+        if boundary_hit {
+            tracing::debug!("🌍 Boundary reflection: Direction changed from {:.2} to {:.2}", direction, new_direction);
         }
 
         ((new_x, new_y), new_direction)
