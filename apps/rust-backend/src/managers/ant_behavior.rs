@@ -85,6 +85,8 @@ impl AntBehaviorManager {
         let ant_type = self.cache.get_ant_type(&ant.ant_type_id)
             .ok_or_else(|| anyhow::anyhow!("Ant type {} not found", ant.ant_type_id))?;
 
+        tracing::debug!("🐜 Ant {} in state {:?} determining action", ant.id, ant.state);
+
         match ant.state {
             AntState::Wandering => {
                 // Look for nearby food first
@@ -171,6 +173,7 @@ impl AntBehaviorManager {
             }
 
             AntState::CarryingFood => {
+                tracing::info!("🐜 Ant {} is carrying food and returning to colony", ant.id);
                 Ok(AntAction::ReturnToColony)
             }
 
@@ -179,6 +182,8 @@ impl AntBehaviorManager {
     }
 
     fn execute_ant_action(&self, ant: &FastAnt, action: AntAction, current_tick: i64) -> anyhow::Result<()> {
+        tracing::debug!("🐜 Ant {} executing action: {:?}", ant.id, action);
+        
         match action {
             AntAction::Wander => self.move_ant_randomly(ant),
             AntAction::Explore => self.scout_explore(ant),
@@ -501,7 +506,7 @@ impl AntBehaviorManager {
     fn move_ant_towards_colony(&self, ant: &FastAnt, current_tick: i64) -> anyhow::Result<()> {
         if let Some(colony) = self.cache.get_colony(&ant.colony_id) {
             let distance_to_colony = self.distance(ant.position, colony.center);
-            //tracing::info!("🐜 Ant {} is moving towards colony at distance {} from position ({}, {})", ant.id, distance_to_colony, ant.position.0, ant.position.1);
+            tracing::info!("🐜 Ant {} is moving towards colony at distance {} from position ({}, {})", ant.id, distance_to_colony, ant.position.0, ant.position.1);
             
             if distance_to_colony < colony.radius {
                 tracing::info!("🐜 Ant {} reached colony and is depositing food", ant.id);
@@ -532,6 +537,8 @@ impl AntBehaviorManager {
                     let ((new_x, new_y), new_angle) =
                         self.move_with_bounds(ant.position, new_angle, ant.speed);
 
+                    tracing::info!("🐜 Ant {} moving from ({}, {}) to ({}, {}) towards colony", ant.id, ant.position.0, ant.position.1, new_x, new_y);
+
                     self.cache.update_ant(ant.id, |a| {
                         a.position = (new_x, new_y);
                         a.angle = new_angle;
@@ -548,8 +555,12 @@ impl AntBehaviorManager {
                             ant.id,
                         );
                     }
+                } else {
+                    tracing::warn!("🐜 Ant {} is at the same position as colony center, this shouldn't happen", ant.id);
                 }
             }
+        } else {
+            tracing::warn!("🐜 Ant {} cannot find its colony {}", ant.id, ant.colony_id);
         }
         Ok(())
     }
