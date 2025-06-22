@@ -60,3 +60,28 @@ npx supabase db reset
 # install turbo cli
 npm install turbo --global
 ```
+
+## Simulation architecture
+
+┌────────────────┐       ┌─────────────────────┐
+│  Environment   │◀──────│  PheromoneField     │
+│ - size, walls  │       │ - 2D grid of floats │
+│ - food sources │       │ - diffuse(), decay()│
+└────────────────┘       └─────────────────────┘
+         ▲                         ▲
+         │ senses grid             │ updated each tick
+         │                         │
+         │          ┌────────────────────────────┐
+         └──────────┤        AntManager          ├──▶ logging, stats
+                    │ - Vec<Ant>                 │
+                    │ - tick()                   │
+                    └────────────────────────────┘
+                              │  
+                              │ calls for each ant:
+                              ▼
+                       ┌─────────────────────┐
+                       │   Ant (agent)       │
+                       │ fields: position,   │
+                       │ heading, state,     │
+                       │ cargo, rng, etc.    │
+                       └─────────────────────┘
