@@ -9,6 +9,38 @@ import { useSimulationWebSocket } from '~/lib/hooks/useSimulationWebSocket'
 import type { Simulation } from '~/types/drizzle'
 import React from 'react'
 
+// Custom hook to detect dark mode
+const useDarkMode = () => {
+  const [isDarkMode, setIsDarkMode] = React.useState(false)
+
+  React.useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(
+        document.documentElement.classList.contains('dark') ||
+        (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      )
+    }
+
+    // Check initially
+    checkDarkMode()
+
+    // Listen for changes
+    const observer = new MutationObserver(checkDarkMode)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+
+    // Listen for media query changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    mediaQuery.addEventListener('change', checkDarkMode)
+
+    return () => {
+      observer.disconnect()
+      mediaQuery.removeEventListener('change', checkDarkMode)
+    }
+  }, [])
+
+  return isDarkMode
+}
+
 // Define minimal types for the rendered data
 type RenderAnt = {
   id: string;
@@ -165,6 +197,7 @@ const SimulationField = ({
   onMouseMove: (e: React.MouseEvent<HTMLDivElement>) => void
   onMouseLeave: () => void
 }) => {
+  const isDarkMode = useDarkMode()
   const gridSize = 4 // Size of each grid square in pixels
   const fieldWidth = simulation ? simulation.world_width : 0
   const fieldHeight = simulation ? simulation.world_height : 0
@@ -195,6 +228,9 @@ const SimulationField = ({
     return acc
   }, {} as Record<string, RenderPheromoneTrail[]>)
 
+  // Choose stroke color based on dark mode
+  const gridStrokeColor = isDarkMode ? "#374151" : "#e5e7eb"
+
   return (
     <div 
       className="relative border border-gray-300 rounded-lg overflow-hidden" 
@@ -204,7 +240,7 @@ const SimulationField = ({
     >
       
       {/* Grid background */}
-      <svg width={fieldWidth} height={fieldHeight} className="absolute inset-0 bg-white" aria-label="Simulation field with grid">
+      <svg width={fieldWidth} height={fieldHeight} className="absolute inset-0 bg-white dark:bg-gray-900" aria-label="Simulation field with grid">
         <title>Ant Simulation Field</title>
         {/* Vertical grid lines */}
         {Array.from({ length: gridCols + 1 }, (_, i) => (
@@ -214,7 +250,7 @@ const SimulationField = ({
             y1={0}
             x2={i * gridSize}
             y2={fieldHeight}
-            stroke="#e5e7eb"
+            stroke={gridStrokeColor}
             strokeWidth={0.5}
           />
         ))}
@@ -226,7 +262,7 @@ const SimulationField = ({
             y1={i * gridSize}
             x2={fieldWidth}
             y2={i * gridSize}
-            stroke="#e5e7eb"
+            stroke={gridStrokeColor}
             strokeWidth={0.5}
           />
         ))}
@@ -439,21 +475,21 @@ const SimulationPage = () => {
 
       {hasSimulation && wsData && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-gray-50 p-3 rounded dark:bg-input/30 dark:border-input">
             <h4 className="font-medium">Simulation ID</h4>
             <p>{wsData.simulation_id}</p>
           </div>
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-gray-50 p-3 rounded dark:bg-input/30 dark:border-input">
             <h4 className="font-medium">Connection Status</h4>
             <p className={connectionState === 'connected' ? "text-green-600" : "text-red-600"}>
               {connectionState === 'connected' ? "Live Updates" : "Disconnected"}
             </p>
           </div>
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-gray-50 p-3 rounded dark:bg-input/30 dark:border-input">
             <h4 className="font-medium">Current Tick</h4>
             <p>{wsData.current_tick.toLocaleString()}</p>
           </div>
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-gray-50 p-3 rounded dark:bg-input/30 dark:border-input">
             <h4 className="font-medium">Update Rate</h4>
             <p>Real-time (500ms)</p>
           </div>
@@ -483,7 +519,7 @@ const SimulationPage = () => {
       {hasSimulation && wsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Ant Positions</h4>
             <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
               {wsData?.ants.map((ant) => (
@@ -507,7 +543,7 @@ const SimulationPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Ant Activity</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -545,7 +581,7 @@ const SimulationPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Pheromone Trails</h4>
             <div className="space-y-2 text-sm">
               {Object.entries(wsData.pheromoneTrails.reduce((acc, trail) => {
@@ -566,7 +602,7 @@ const SimulationPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Ants</h4>
             <div className="space-y-3 text-sm">
               {Object.entries(wsData.ants.reduce((acc, ant) => {
@@ -593,7 +629,7 @@ const SimulationPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Colonies</h4>
             <div className="space-y-2 text-sm">
               {wsData.colonies.map((colony) => (
@@ -605,7 +641,7 @@ const SimulationPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Colony Resources</h4>
             <div className="space-y-3 text-sm">
               {wsData.colonies.map((colony) => {
@@ -640,7 +676,7 @@ const SimulationPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white border rounded-lg p-4 dark:bg-input/30 dark:border-input">
             <h4 className="font-semibold mb-2">Food Sources</h4>
             <div className="space-y-2 text-sm">
               {wsData.foodSources.map((food) => (

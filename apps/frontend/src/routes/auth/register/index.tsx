@@ -55,8 +55,8 @@ const RegistgerPage = () => {
           </div>
           <div className="relative z-20 mt-auto">
             <blockquote className="space-y-2">
-              <p className="text-lg">&ldquo;Let the games begin!&rdquo;</p>
-              <footer className="text-sm">Bot No. 1</footer>
+              <p className="text-lg">&ldquo;Lorem ipsum!&rdquo;</p>
+              <footer className="text-sm">Hello World</footer>
             </blockquote>
           </div>
         </div>
