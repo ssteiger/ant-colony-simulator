@@ -33,7 +33,11 @@ const RegistgerPage = () => {
           Login
         </Link>
         <div className="relative flex-col hidden h-full p-10 text-white bg-muted dark:border-r lg:flex">
-          <div className="absolute inset-0 bg-zinc-900" />
+          <div 
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: 'url(/cover.png)' }}
+          />
+          <div className="absolute inset-0 bg-black/50" />
           <div className="relative z-20 flex items-center text-lg font-medium">
             <svg
               xmlns="http://www.w3.org/2000/svg"
