@@ -81,3 +81,5 @@ npm install turbo --global
                        │ heading, state,     │
                        │ cargo, rng, etc.    │
                        └─────────────────────┘
+
+![Ant Colony Simulator Screenshot](apps/frontend/public/screenshots/2.jpg)
