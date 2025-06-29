@@ -2,6 +2,8 @@
 
 ![Ant Colony Simulator Screenshot](apps/frontend/public/screenshots/1.jpg)
 
+![Ant Colony Simulator Screenshot](apps/frontend/public/screenshots/2.jpg)
+
 ## Local development
 
 ```bash
@@ -82,4 +84,3 @@ npm install turbo --global
                        │ cargo, rng, etc.    │
                        └─────────────────────┘
 
-![Ant Colony Simulator Screenshot](apps/frontend/public/screenshots/2.jpg)
