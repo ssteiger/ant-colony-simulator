@@ -1,5 +1,7 @@
 # Ant Colony Simulator
 
+![Ant Colony Simulator Screenshot](apps/frontend/public/screenshots/1.jpg)
+
 ## Local development
 
 ```bash
