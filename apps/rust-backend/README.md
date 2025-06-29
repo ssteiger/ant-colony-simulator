@@ -1,245 +1,315 @@
-# Ant Colony Simulator - Rust Backend
+# Ant Colony Simulator - Bevy + Big Brain Backend
 
-A high-performance ant colony simulation written in Rust with efficient in-memory processing and periodic database synchronization.
+A high-performance ant colony simulation built with Rust, Bevy game engine, and Big Brain AI system.
 
 ## Features
 
-🚀 **Performance Optimized**
-- In-memory processing with DashMap for concurrent access
-- Parallel ant processing using Rayon
-- Batched database operations
-- 20 FPS simulation speed (vs 10 FPS in Node.js)
-
-🎯 **Efficient Architecture**
-- Periodic database sync (every 100 ticks) instead of continuous writes
-- Vectorized operations for ant movement
-- Spatial optimization for pheromone trail lookup
-- Memory-efficient data structures
-
-🐜 **Realistic Ant Behavior**
-- Role-based behavior (workers, scouts, soldiers)
-- Pheromone trail following with decay
-- Food collection and colony resource management
-- Emergent flocking and pathfinding behavior
-
-## Performance Improvements over Node.js
-
-| Metric | Node.js Backend | Rust Backend | Improvement |
-|--------|----------------|--------------|-------------|
-| Tick Rate | 10 FPS (100ms) | 20 FPS (50ms) | **2x faster** |
-| DB Operations | Every tick | Every 100 ticks | **100x fewer DB calls** |
-| Memory Usage | High (GC overhead) | Low (no GC) | **~50% reduction** |
-| CPU Usage | High (interpreted) | Low (compiled) | **~70% reduction** |
-| Ant Processing | Sequential | Parallel batches | **~4x faster** |
-
-## Quick Start
-
-### Prerequisites
-
-- Rust 1.70+
-- PostgreSQL database
-- Existing simulation data (from the Node.js backend or frontend)
-
-### Environment Variables
-
-```bash
-export DATABASE_URL="postgresql://username:password@localhost:5432/database"
-```
-
-### Running the Simulator
-
-```bash
-# Install dependencies and build
-cargo build --release
-
-# Run with automatic simulation detection
-cargo run --release -- --database-url $DATABASE_URL
-
-# Run with specific simulation ID
-cargo run --release -- --simulation-id YOUR_SIMULATION_ID --database-url $DATABASE_URL
-
-# Run with debug logging
-cargo run --release -- --database-url $DATABASE_URL --log-level debug
-```
-
-### Command Line Options
-
-```
-USAGE:
-    simulator [OPTIONS] --database-url <DATABASE_URL>
-
-OPTIONS:
-    -s, --simulation-id <SIMULATION_ID>   Simulation ID to run
-    -d, --database-url <DATABASE_URL>     Database URL [env: DATABASE_URL]
-    -l, --log-level <LOG_LEVEL>          Log level (trace, debug, info, warn, error) [default: info]
-    -h, --help                           Print help information
-    -V, --version                        Print version information
-```
+- **Bevy ECS**: Entity-Component-System architecture for efficient simulation
+- **Big Brain AI**: Advanced behavior tree system for ant decision making
+- **Real-time WebSocket**: Live simulation updates to connected clients
+- **Database Persistence**: PostgreSQL backend for simulation state
+- **Modular Design**: Separate systems for ant behavior, colony management, environment, and pheromones
 
 ## Architecture
 
 ### Core Components
 
-1. **SimulationCache** - High-performance in-memory state management
-2. **AntBehaviorManager** - Parallel ant processing with role-based AI
-3. **ColonyManager** - Colony growth and resource management
-4. **EnvironmentManager** - Food regeneration and spawning
-5. **PheromoneManager** - Efficient pheromone trail decay
-6. **DatabaseManager** - Batched database operations
+- **Ant**: Individual ant entities with physics, health, and AI
+- **Colony**: Ant colonies with resources, population, and territory
+- **Food Source**: Renewable food sources that ants can collect
+- **Pheromone Trail**: Chemical trails that guide ant behavior
 
-### Data Flow
+### Systems
 
+1. **Ant Behavior Systems** (`managers/ant_behavior.rs`)
+   - Movement and physics
+   - Health and energy management
+   - Big Brain AI decision making
+   - Food and colony interactions
+
+2. **Colony Management** (`managers/colony.rs`)
+   - Population spawning
+   - Resource management
+   - Colony upgrades
+   - Territory conflicts
+
+3. **Environment Systems** (`managers/environment.rs`)
+   - Food regeneration
+   - Weather effects
+   - Day/night cycles
+   - Seasonal changes
+
+4. **Pheromone Systems** (`managers/pheromone.rs`)
+   - Trail creation and decay
+   - Pheromone detection
+   - Trail merging
+   - Danger avoidance
+
+## Big Brain AI
+
+The simulation uses Big Brain for sophisticated ant behavior:
+
+### Actions
+- `SeekFoodAction`: Find and collect food
+- `FollowPheromoneAction`: Follow chemical trails
+- `ReturnToColonyAction`: Return to colony with resources
+- `ExploreAction`: Explore new areas
+
+### Scorers
+- `FoodSeekingScorer`: Evaluates hunger and carrying capacity
+- `PheromoneFollowingScorer`: Evaluates pheromone sensitivity
+- `ReturnToColonyScorer`: Evaluates energy and resource load
+- `ExplorationScorer`: Evaluates energy levels for exploration
+
+### Behavior Tree
+```rust
+Thinker::new()
+    .picker(FirstToScore { threshold: 0.8 })
+    .when("Seek Food", FoodSeekingScorer, SeekFoodAction)
+    .when("Follow Pheromone", PheromoneFollowingScorer, FollowPheromoneAction)
+    .when("Return to Colony", ReturnToColonyScorer, ReturnToColonyAction)
+    .when("Explore", ExplorationScorer, ExploreAction)
 ```
-Database → Initial Load → Cache → Simulation Loop → Periodic Sync → Database
-```
 
-### Memory Management
+## Installation
 
-- **FastAnt/FastColony/FastFoodSource** - Memory-optimized structs for simulation
-- **DashMap** - Lock-free concurrent hash maps
-- **Dirty tracking** - Only sync changed entities to database
-- **Spatial optimization** - Efficient range queries for nearby entities
+### Prerequisites
+
+- Rust 1.70+
+- PostgreSQL 12+
+- Cargo
+
+### Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd ant-colony-simulator/apps/rust-backend
+   ```
+
+2. **Install dependencies**
+   ```bash
+   cargo build
+   ```
+
+3. **Set up database**
+   ```bash
+   # Set your database URL
+   export DATABASE_URL="postgresql://username:password@localhost/ant_colony_db"
+   
+   # Run database migrations (if any)
+   # sqlx migrate run
+   ```
+
+4. **Run the simulation**
+   ```bash
+   # Run with default settings
+   cargo run
+   
+   # Run with specific simulation ID
+   cargo run -- --simulation-id 1
+   
+   # Run with custom database URL
+   cargo run -- --database-url "postgresql://user:pass@localhost/db"
+   
+   # Run with debug logging
+   cargo run -- --log-level debug
+   ```
 
 ## Configuration
 
-### Simulation Parameters
+### Command Line Arguments
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| Tick Interval | 50ms | Time between simulation updates |
-| DB Sync Interval | 100 ticks | How often to sync to database |
-| Batch Size | 100 ants | Parallel processing batch size |
-| Pheromone Decay | 0.05/tick | Rate of pheromone trail decay |
+- `--simulation-id`: ID of the simulation to run
+- `--database-url`: PostgreSQL connection string
+- `--log-level`: Logging level (trace, debug, info, warn, error)
+- `--server-addr`: WebSocket server address (default: 127.0.0.1:8080)
 
-### Ant Behavior
+### Environment Variables
 
-- **Workers**: 70% of population, focus on food collection
-- **Scouts**: 20% of population, explore and discover food
-- **Soldiers**: 10% of population, patrol colony perimeter
+- `DATABASE_URL`: PostgreSQL connection string
+- `RUST_LOG`: Logging level configuration
 
-## Performance Monitoring
+## WebSocket API
 
-The simulator provides detailed logging:
+The simulation broadcasts real-time updates via WebSocket:
 
-```
-📊 Tick 1000 - Ants: 150, Colonies: 2, Food: 1250, Pheromones: 45 (15ms)
-💾 Database sync complete - Updated 45 ants, 2 colonies, 8 food sources (25ms)
+### Connection
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws');
 ```
 
-### Metrics Tracked
+### Subscribe to Simulation
+```javascript
+ws.send(JSON.stringify({
+    type: 'Subscribe',
+    simulation_id: 1
+}));
+```
 
-- Tick processing time
-- Database sync frequency and duration
-- Entity counts (ants, colonies, food, pheromones)
-- Memory usage (via OS tools)
+### Message Types
 
-## Database Schema Compatibility
+#### FullState
+Complete simulation state (sent on initial connection):
+```json
+{
+    "type": "FullState",
+    "simulation_id": 1,
+    "tick": 1234,
+    "ants": [...],
+    "colonies": [...],
+    "food_sources": [...],
+    "pheromone_trails": [...]
+}
+```
 
-This Rust backend is fully compatible with the existing database schema and can run alongside or replace the Node.js backend without any data migration.
+#### DeltaUpdate
+Incremental updates with only changed entities:
+```json
+{
+    "type": "DeltaUpdate",
+    "simulation_id": 1,
+    "tick": 1234,
+    "updated_ants": [...],
+    "updated_colonies": [...],
+    "updated_food_sources": [...],
+    "new_pheromone_trails": [...],
+    "removed_ant_ids": [...],
+    "removed_food_source_ids": [...]
+}
+```
+
+## Performance
+
+The Bevy-based simulation offers significant performance improvements:
+
+- **ECS Architecture**: Efficient entity processing
+- **Parallel Systems**: Concurrent execution of independent systems
+- **Memory Management**: Optimized component storage
+- **Big Brain AI**: Fast behavior tree evaluation
 
 ## Development
 
-### Building
+### Adding New Systems
 
+1. Create a new system function:
+   ```rust
+   pub fn my_system(
+       mut query: Query<(&mut MyComponent, &OtherComponent)>,
+   ) {
+       for (mut my_comp, other_comp) in query.iter_mut() {
+           // System logic
+       }
+   }
+   ```
+
+2. Add it to a plugin:
+   ```rust
+   impl Plugin for MyPlugin {
+       fn build(&self, app: &mut App) {
+           app.add_systems(Update, my_system);
+       }
+   }
+   ```
+
+3. Register the plugin in the main simulation:
+   ```rust
+   app.add_plugins(MyPlugin);
+   ```
+
+### Adding New Components
+
+1. Define the component:
+   ```rust
+   #[derive(Component, Debug, Clone)]
+   pub struct MyComponent {
+       pub value: f32,
+   }
+   ```
+
+2. Add it to entities:
+   ```rust
+   commands.spawn((
+       MyComponent { value: 42.0 },
+       // Other components...
+   ));
+   ```
+
+### Adding New Big Brain Actions
+
+1. Implement the Action trait:
+   ```rust
+   #[derive(Clone, Component, Debug)]
+   pub struct MyAction;
+
+   impl Action for MyAction {
+       fn is_valid(&self, _actor: &Actor) -> bool {
+           true
+       }
+
+       fn execute(&self, actor: &Actor, ctx: &Context) -> ActionResult {
+           // Action logic
+           ActionResult::Success
+       }
+   }
+   ```
+
+2. Add it to the behavior tree:
+   ```rust
+   Thinker::new()
+       .when("My Action", MyScorer, MyAction)
+   ```
+
+## Monitoring
+
+### Health Check
 ```bash
-# Debug build
-cargo build
-
-# Release build (optimized)
-cargo build --release
-
-# Run tests
-cargo test
-
-# Check code formatting
-cargo fmt --check
-
-# Run linter
-cargo clippy
+curl http://localhost:8080/health
 ```
 
-### Adding Features
-
-1. Extend models in `src/models.rs`
-2. Add manager logic in `src/managers/`
-3. Update cache operations in `src/cache.rs`
-4. Add database operations in `src/database.rs`
-
-## Deployment
-
-### Docker
-
-```dockerfile
-FROM rust:1.70 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/simulator /usr/local/bin/simulator
-CMD ["simulator"]
+### Server Stats
+```bash
+curl http://localhost:8080/stats
 ```
 
-### Kubernetes
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ant-simulator
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ant-simulator
-  template:
-    metadata:
-      labels:
-        app: ant-simulator
-    spec:
-      containers:
-      - name: simulator
-        image: ant-simulator:latest
-        env:
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: url
-```
+### Logging
+The simulation uses structured logging with different levels:
+- `TRACE`: Detailed system execution
+- `DEBUG`: System state and performance
+- `INFO`: General simulation events
+- `WARN`: Potential issues
+- `ERROR`: Errors and failures
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"No active simulation found"**
-- Create a simulation using the frontend or Node.js backend first
-- Or provide a specific simulation ID with `--simulation-id`
+1. **Database Connection Failed**
+   - Check `DATABASE_URL` environment variable
+   - Ensure PostgreSQL is running
+   - Verify database exists and is accessible
 
-**Database connection errors**
-- Verify DATABASE_URL format: `postgresql://user:pass@host:port/db`
-- Ensure PostgreSQL is running and accessible
-- Check firewall and network connectivity
+2. **WebSocket Connection Failed**
+   - Check if port 8080 is available
+   - Verify firewall settings
+   - Check server logs for errors
 
-**High memory usage**
-- Reduce batch size in parallel processing
-- Increase DB sync frequency (lower db_sync_interval)
-- Monitor for memory leaks with profiling tools
+3. **Simulation Performance Issues**
+   - Reduce entity count
+   - Adjust system update frequency
+   - Monitor memory usage
 
-**Slow performance**
-- Ensure release build (`cargo build --release`)
-- Monitor database sync times
-- Check system resources (CPU, memory, I/O)
+### Debug Mode
+
+Run with debug logging for detailed information:
+```bash
+cargo run -- --log-level debug
+```
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes with tests
-4. Run `cargo fmt` and `cargo clippy`
+3. Make your changes
+4. Add tests if applicable
 5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 

@@ -1,4 +1,3 @@
-use crate::websocket::WebSocketManager;
 use axum::{
     routing::get,
     Router,
@@ -8,15 +7,11 @@ use tower_http::cors::{CorsLayer, Any};
 use tokio::net::TcpListener;
 use tracing::info;
 
-pub struct SimulationServer {
-    websocket_manager: WebSocketManager,
-}
+pub struct SimulationServer;
 
 impl SimulationServer {
-    pub fn new(websocket_manager: WebSocketManager) -> Self {
-        Self {
-            websocket_manager,
-        }
+    pub fn new() -> Self {
+        Self
     }
 
     pub async fn start(&self, addr: &str) -> anyhow::Result<()> {
@@ -32,10 +27,8 @@ impl SimulationServer {
 
     fn create_router(&self) -> Router {
         Router::new()
-            .route("/ws", get(WebSocketManager::handle_websocket))
             .route("/health", get(health_check))
             .route("/stats", get(get_server_stats))
-            .with_state(self.websocket_manager.clone())
             .layer(
                 CorsLayer::new()
                     .allow_origin(Any)
@@ -49,9 +42,6 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
-async fn get_server_stats(
-    axum::extract::State(websocket_manager): axum::extract::State<WebSocketManager>,
-) -> String {
-    let client_count = websocket_manager.client_count().await;
-    format!("{{\"connected_clients\": {}}}", client_count)
+async fn get_server_stats() -> String {
+    format!("{{\"connected_clients\": 0}}")
 } 

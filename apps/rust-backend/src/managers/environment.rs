@@ -1,114 +1,216 @@
-use crate::cache::SimulationCache;
-use crate::database::DatabaseManager;
+use bevy::prelude::*;
 use crate::models::*;
-use rand::prelude::*;
-use rand::rngs::SmallRng;
-use std::sync::Arc;
+use rand::Rng;
 
-pub struct EnvironmentManager {
-    cache: Arc<SimulationCache>,
-    db: Arc<DatabaseManager>,
+// ============================================================================
+// ENVIRONMENT MANAGEMENT SYSTEMS
+// ============================================================================
+
+/// System to manage food source regeneration
+pub fn food_regeneration_system(
+    mut food_sources: Query<&mut FoodSourceProperties, With<FoodSource>>,
+    simulation_state: Res<SimulationState>,
+) {
+    for mut food in food_sources.iter_mut() {
+        if food.is_renewable && food.amount < food.max_amount {
+            // Regenerate food over time
+            food.amount = (food.amount + food.regeneration_rate).min(food.max_amount);
+        }
+    }
 }
 
-impl EnvironmentManager {
-    pub fn new(cache: Arc<SimulationCache>, db: Arc<DatabaseManager>) -> Self {
-        Self { cache, db }
-    }
-
-    pub async fn process_tick(&self, current_tick: i64) {
-        tracing::debug!("🌍 EnvironmentManager: Processing tick {}", current_tick);
-
-        // Regenerate food sources
-        self.regenerate_food_sources();
-
-        // Spawn new food sources every 100 ticks
-        if current_tick % 100 == 0 {
-            if let Err(e) = self.spawn_new_food_sources().await {
-                tracing::warn!("Failed to spawn new food sources: {}", e);
-            }
-        }
-
-        tracing::debug!("🌍 EnvironmentManager: Completed tick {}", current_tick);
-    }
-
-    fn regenerate_food_sources(&self) {
-        let mut regenerated_count = 0;
+/// System to manage food source spoilage
+pub fn food_spoilage_system(
+    mut commands: Commands,
+    mut food_sources: Query<(Entity, &mut FoodSourceProperties), With<FoodSource>>,
+    simulation_state: Res<SimulationState>,
+) {
+    for (entity, mut food) in food_sources.iter_mut() {
+        // Apply spoilage
+        food.amount = (food.amount - food.spoilage_rate).max(0.0);
         
-        for mut entry in self.cache.food_sources.iter_mut() {
-            let food = entry.value_mut();
+        // Remove completely spoiled food
+        if food.amount <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// System to spawn new food sources
+pub fn food_spawning_system(
+    mut commands: Commands,
+    food_sources: Query<&FoodSourceProperties, With<FoodSource>>,
+    simulation_state: Res<SimulationState>,
+    world_bounds: Res<WorldBounds>,
+) {
+    // Spawn new food sources periodically
+    if simulation_state.current_tick % 5000 == 0 {
+        let current_food_count = food_sources.iter().count();
+        let max_food_sources = 50; // Maximum number of food sources
+        
+        if current_food_count < max_food_sources {
+            spawn_random_food_source(&mut commands, &world_bounds);
+        }
+    }
+}
+
+/// System to manage weather effects
+pub fn weather_system(
+    mut ants: Query<(&mut AntHealth, &AntPhysics), With<Ant>>,
+    simulation_state: Res<SimulationState>,
+) {
+    // Simulate weather effects on ants
+    for (mut health, physics) in ants.iter_mut() {
+        // Rain reduces ant speed and energy
+        if simulation_state.current_tick % 1000 < 500 {
+            // Rainy period
+            health.energy = (health.energy - 0.2).max(0.0);
+        }
+        
+        // Extreme weather can damage ants
+        if simulation_state.current_tick % 2000 < 100 {
+            // Storm period
+            health.health = (health.health - 0.5).max(0.0);
+        }
+    }
+}
+
+/// System to manage day/night cycle
+pub fn day_night_cycle_system(
+    mut ants: Query<(&mut AntHealth, &mut AntPhysics), With<Ant>>,
+    simulation_state: Res<SimulationState>,
+) {
+    let time_of_day = (simulation_state.current_tick % 24000) as f32 / 24000.0; // 24-hour cycle
+    
+    for (mut health, mut physics) in ants.iter_mut() {
+        // Night time reduces ant activity
+        if time_of_day < 0.25 || time_of_day > 0.75 {
+            // Night time
+            physics.max_speed *= 0.5;
+            health.energy = (health.energy - 0.1).max(0.0);
+        } else {
+            // Day time - restore normal speed
+            physics.max_speed = 50.0; // Reset to base speed
+        }
+    }
+}
+
+/// System to manage seasonal effects
+pub fn seasonal_system(
+    mut food_sources: Query<&mut FoodSourceProperties, With<FoodSource>>,
+    simulation_state: Res<SimulationState>,
+) {
+    let season_progress = (simulation_state.current_tick % 100000) as f32 / 100000.0; // Seasonal cycle
+    
+    for mut food in food_sources.iter_mut() {
+        // Winter reduces food regeneration
+        if season_progress < 0.25 || season_progress > 0.75 {
+            food.regeneration_rate *= 0.3;
+        } else {
+            // Spring/Summer - normal regeneration
+            food.regeneration_rate = 1.0;
+        }
+    }
+}
+
+/// System to manage environmental hazards
+pub fn environmental_hazards_system(
+    mut commands: Commands,
+    mut ants: Query<(Entity, &mut AntHealth, &AntPhysics), With<Ant>>,
+    simulation_state: Res<SimulationState>,
+) {
+    for (entity, mut health, physics) in ants.iter_mut() {
+        // Random environmental hazards
+        if simulation_state.current_tick % 10000 == 0 {
+            let mut rng = rand::thread_rng();
+            let hazard_chance = rng.gen::<f32>();
             
-            // Only regenerate every 10 ticks and if food is renewable
-            if food.is_renewable && food.amount < food.max_amount && food.regeneration_rate > 0.0 {
-                // Reduce regeneration rate by 10x
-                let regeneration_amount = food.regeneration_rate / 10.0;
-                let new_amount = (food.amount as f32 + regeneration_amount).min(food.max_amount as f32) as i32;
+            if hazard_chance < 0.01 {
+                // 1% chance of hazard
+                health.health = (health.health - 20.0).max(0.0);
                 
-                if new_amount > food.amount {
-                    food.amount = new_amount;
-                    regenerated_count += 1;
-                    tracing::info!("🍎 Food source {} regenerated to {}", entry.key(), new_amount);
+                if health.health <= 0.0 {
+                    commands.entity(entity).despawn();
                 }
             }
         }
-
-        if regenerated_count > 0 {
-            tracing::info!("🌍 Regenerated {} food sources", regenerated_count);
-        }
     }
+}
 
-    async fn spawn_new_food_sources(&self) -> anyhow::Result<()> {
-        let current_food_count = self.cache.food_sources.len();
-        let max_food_sources = 20; // Limit total food sources
-
-        if current_food_count >= max_food_sources {
-            return Ok(());
-        }
-
-        let mut rng = SmallRng::from_entropy();
-        let food_types = vec!["seeds", "sugar", "protein", "fruit"];
+/// System to manage world boundaries
+pub fn world_boundaries_system(
+    mut ants: Query<&mut AntPhysics, With<Ant>>,
+    world_bounds: Res<WorldBounds>,
+) {
+    for mut physics in ants.iter_mut() {
+        // Keep ants within world bounds
+        physics.position.x = physics.position.x.clamp(0.0, world_bounds.width);
+        physics.position.y = physics.position.y.clamp(0.0, world_bounds.height);
         
-        // Spawn 1-3 new food sources
-        let spawn_count = rng.gen_range(1..=3);
-        
-        for _ in 0..spawn_count {
-            if self.cache.food_sources.len() >= max_food_sources {
-                break;
-            }
-
-            let food_type = food_types.choose(&mut rng).unwrap().to_string();
-            let position_x = rng.gen_range(50.0..self.cache.world_bounds.width - 50.0) as i32;
-            let position_y = rng.gen_range(50.0..self.cache.world_bounds.height - 50.0) as i32;
-            
-            let amount = rng.gen_range(20..=50);
-            let max_amount = amount + rng.gen_range(10..=30);
-            let regeneration_rate = if rng.gen_bool(0.3) { rng.gen_range(1..=3) } else { 0 };
-            let is_renewable = regeneration_rate > 0;
-
-            let new_food = FastFoodSource {
-                id: rng.gen::<i32>().abs(), // Temporary ID - should be replaced by database
-                position: (position_x as f32, position_y as f32),
-                food_type,
-                amount,
-                max_amount,
-                regeneration_rate: regeneration_rate as f32,
-                is_renewable,
-            };
-
-            self.cache.insert_food_source(new_food);
-            
-            tracing::debug!("🍎 Spawned new food source at ({}, {})", position_x, position_y);
+        // Bounce off boundaries
+        if physics.position.x <= 0.0 || physics.position.x >= world_bounds.width {
+            physics.velocity.x *= -0.5;
         }
-
-        Ok(())
+        if physics.position.y <= 0.0 || physics.position.y >= world_bounds.height {
+            physics.velocity.y *= -0.5;
+        }
     }
+}
 
-    pub fn apply_weather_effects(&self, _weather_type: &str, _intensity: f32) {
-        // Placeholder for weather effects
-        // Could affect food regeneration, ant movement speed, etc.
-    }
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
-    pub fn handle_seasonal_changes(&self, _season: &str) {
-        // Placeholder for seasonal effects
-        // Could affect food availability, ant behavior, etc.
+/// Spawn a random food source in the world
+fn spawn_random_food_source(
+    commands: &mut Commands,
+    world_bounds: &WorldBounds,
+) {
+    let mut rng = rand::thread_rng();
+    
+    // Random position
+    let x = rng.gen_range(50.0..world_bounds.width - 50.0);
+    let y = rng.gen_range(50.0..world_bounds.height - 50.0);
+    
+    // Random food type
+    let food_types = vec!["seeds", "sugar", "protein", "fruit"];
+    let food_type = food_types[rng.gen_range(0..food_types.len())];
+    
+    // Random properties
+    let max_amount = rng.gen_range(50.0..200.0);
+    let regeneration_rate = rng.gen_range(0.1..2.0);
+    let nutritional_value = rng.gen_range(10.0..50.0);
+    
+    commands.spawn((
+        FoodSource,
+        FoodSourceProperties {
+            food_type: food_type.to_string(),
+            amount: max_amount,
+            max_amount,
+            regeneration_rate,
+            is_renewable: true,
+            nutritional_value,
+            spoilage_rate: 0.01,
+            discovery_difficulty: rng.gen_range(0.1..1.0),
+        },
+        Transform::from_translation(Vec3::new(x, y, 0.0)),
+    ));
+}
+
+/// Plugin for environment management systems
+pub struct EnvironmentPlugin;
+
+impl Plugin for EnvironmentPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, (
+            food_regeneration_system,
+            food_spoilage_system,
+            food_spawning_system,
+            weather_system,
+            day_night_cycle_system,
+            seasonal_system,
+            environmental_hazards_system,
+            world_boundaries_system,
+        ));
     }
 } 

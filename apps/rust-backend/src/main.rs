@@ -1,10 +1,9 @@
-use ant_colony_simulator::{AntColonySimulator, WebSocketManager, SimulationServer};
+use ant_colony_simulator::{AntColonySimulator};
 use anyhow::Result;
 use clap::Parser;
 use sqlx::postgres::PgPoolOptions;
 use tracing::{info, Level};
 use tracing_subscriber;
-use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -20,14 +19,13 @@ struct Args {
     /// Log level (trace, debug, info, warn, error)
     #[arg(short, long, default_value = "info")]
     log_level: String,
-
-    /// WebSocket server address
-    #[arg(short, long, default_value = "127.0.0.1:8080")]
-    server_addr: String,
+    
+    /// Test mode - run without database
+    #[arg(short, long)]
+    test: bool,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::parse();
 
     // Initialize logging
@@ -47,21 +45,37 @@ async fn main() -> Result<()> {
         .with_line_number(true)
         .init();
 
-    info!("🚀 Starting Ant Colony Simulator (Rust Backend)");
+    info!("🚀 Starting Ant Colony Simulator (Bevy + Big Brain Backend)");
     info!("📊 Log level: {}", log_level);
-    info!("🌐 WebSocket server will start on: {}", args.server_addr);
+
+    if args.test {
+        info!("🧪 Running in test mode - no database required");
+        
+        // Create a simple test simulation without database
+        let mut simulator = AntColonySimulator::new_test()?;
+        
+        info!("🎮 Starting test simulation...");
+        if let Err(e) = simulator.start() {
+            tracing::error!("Bevy simulation error: {}", e);
+        }
+        
+        info!("✅ Test completed successfully!");
+        return Ok(());
+    }
 
     // Get database URL from argument or environment variable
     let database_url = args.database_url
         .or_else(|| std::env::var("DATABASE_URL").ok())
         .ok_or_else(|| anyhow::anyhow!("DATABASE_URL must be provided either as argument or environment variable"))?;
 
+    // Create a simple runtime for database operations
+    let rt = tokio::runtime::Runtime::new()?;
+    
     // Connect to database
     info!("🔌 Connecting to database...");
-    let pool = PgPoolOptions::new()
+    let pool = rt.block_on(PgPoolOptions::new()
         .max_connections(10)
-        .connect(&database_url)
-        .await?;
+        .connect(&database_url))?;
 
     info!("✅ Database connection established");
 
@@ -71,11 +85,10 @@ async fn main() -> Result<()> {
     } else {
         info!("🔍 No simulation ID provided, looking for active simulation...");
         
-        let active_simulation: Option<(i32,)> = sqlx::query_as(
+        let active_simulation: Option<(i32,)> = rt.block_on(sqlx::query_as(
             "SELECT id FROM simulations WHERE is_active = true ORDER BY created_at DESC LIMIT 1"
         )
-        .fetch_optional(&pool)
-        .await?;
+        .fetch_optional(&pool))?;
 
         match active_simulation {
             Some((id,)) => {
@@ -90,42 +103,30 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Create WebSocket manager
-    let websocket_manager = Arc::new(WebSocketManager::new());
+    // Create and start Bevy simulator
+    info!("🎮 Initializing Bevy simulation: {}", simulation_id);
+    let mut simulator = AntColonySimulator::new(pool, simulation_id)?;
 
-    // Create and start WebSocket server
-    let server = SimulationServer::new((*websocket_manager).clone());
-    let server_addr = args.server_addr.clone();
-    let mut server_handle = tokio::spawn(async move {
-        if let Err(e) = server.start(&server_addr).await {
-            tracing::error!("WebSocket server error: {}", e);
-        }
-    });
-
-    // Create and start simulator
-    info!("🎮 Initializing simulation: {}", simulation_id);
-    let mut simulator = AntColonySimulator::new(pool, simulation_id, websocket_manager).await?;
-
-    // Handle graceful shutdown
-    let mut simulator_handle = tokio::spawn(async move {
-        if let Err(e) = simulator.start().await {
-            tracing::error!("Simulation error: {}", e);
-        }
-    });
-
-    // Wait for Ctrl+C
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
+    // Handle graceful shutdown with Ctrl+C
+    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
+    
+    // Spawn a thread to handle Ctrl+C
+    std::thread::spawn(move || {
+        ctrlc::set_handler(move || {
             info!("🛑 Received Ctrl+C, shutting down gracefully...");
-        }
-        _ = &mut simulator_handle => {
-            info!("🏁 Simulation completed");
-        }
-        _ = &mut server_handle => {
-            info!("🌐 WebSocket server stopped");
-        }
+            let _ = shutdown_tx.send(());
+        }).expect("Error setting Ctrl-C handler");
+    });
+
+    // Start the simulation
+    info!("🎮 Starting Bevy simulation...");
+    if let Err(e) = simulator.start() {
+        tracing::error!("Bevy simulation error: {}", e);
     }
 
+    // Wait for shutdown signal
+    let _ = shutdown_rx.recv();
+    
     info!("👋 Goodbye!");
     Ok(())
 } 

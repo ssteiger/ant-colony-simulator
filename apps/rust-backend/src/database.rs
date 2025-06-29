@@ -12,7 +12,7 @@ impl DatabaseManager {
     }
 
     // Load initial simulation state
-    pub async fn load_simulation(&self, simulation_id: i32) -> Result<Simulation> {
+    pub async fn load_simulation(&self, simulation_id: i32) -> Result<DatabaseSimulation> {
         let row = sqlx::query(
             "SELECT * FROM simulations WHERE id = $1 AND is_active = true"
         )
@@ -20,7 +20,7 @@ impl DatabaseManager {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(Simulation {
+        Ok(DatabaseSimulation {
             id: row.get("id"),
             name: row.get("name"),
             description: row.get("description"),
@@ -38,7 +38,7 @@ impl DatabaseManager {
         })
     }
 
-    pub async fn load_colonies(&self, simulation_id: i32) -> Result<Vec<Colony>> {
+    pub async fn load_colonies(&self, simulation_id: i32) -> Result<Vec<DatabaseColony>> {
         let rows = sqlx::query(
             "SELECT * FROM colonies WHERE simulation_id = $1 AND is_active = true"
         )
@@ -48,7 +48,7 @@ impl DatabaseManager {
 
         let mut colonies = Vec::new();
         for row in rows {
-            colonies.push(Colony {
+            colonies.push(DatabaseColony {
                 id: row.get("id"),
                 simulation_id: row.get("simulation_id"),
                 name: row.get("name"),
@@ -68,7 +68,7 @@ impl DatabaseManager {
         Ok(colonies)
     }
 
-    pub async fn load_ants(&self, simulation_id: i32) -> Result<Vec<Ant>> {
+    pub async fn load_ants(&self, simulation_id: i32) -> Result<Vec<DatabaseAnt>> {
         let rows = sqlx::query(
             r#"
             SELECT a.* FROM ants a
@@ -82,7 +82,7 @@ impl DatabaseManager {
 
         let mut ants = Vec::new();
         for row in rows {
-            ants.push(Ant {
+            ants.push(DatabaseAnt {
                 id: row.get("id"),
                 colony_id: row.get("colony_id"),
                 ant_type_id: row.get("ant_type_id"),
@@ -108,14 +108,14 @@ impl DatabaseManager {
         Ok(ants)
     }
 
-    pub async fn load_ant_types(&self) -> Result<Vec<AntType>> {
+    pub async fn load_ant_types(&self) -> Result<Vec<DatabaseAntType>> {
         let rows = sqlx::query("SELECT * FROM ant_types")
             .fetch_all(&self.pool)
             .await?;
 
         let mut ant_types = Vec::new();
         for row in rows {
-            ant_types.push(AntType {
+            ant_types.push(DatabaseAntType {
                 id: row.get("id"),
                 name: row.get("name"),
                 base_speed: row.get("base_speed"),
@@ -133,7 +133,7 @@ impl DatabaseManager {
         Ok(ant_types)
     }
 
-    pub async fn load_food_sources(&self, simulation_id: i32) -> Result<Vec<FoodSource>> {
+    pub async fn load_food_sources(&self, simulation_id: i32) -> Result<Vec<DatabaseFoodSource>> {
         let rows = sqlx::query(
             "SELECT * FROM food_sources WHERE simulation_id = $1 AND amount > 0"
         )
@@ -143,7 +143,7 @@ impl DatabaseManager {
 
         let mut food_sources = Vec::new();
         for row in rows {
-            food_sources.push(FoodSource {
+            food_sources.push(DatabaseFoodSource {
                 id: row.get("id"),
                 simulation_id: row.get("simulation_id"),
                 food_type: row.get("food_type"),
@@ -163,7 +163,7 @@ impl DatabaseManager {
     }
 
     // Batch update operations - much more efficient than individual updates
-    pub async fn batch_update_ants(&self, ants: &[FastAnt]) -> Result<()> {
+    pub async fn batch_update_ants(&self, ants: &[DatabaseAnt]) -> Result<()> {
         if ants.is_empty() {
             return Ok(());
         }
@@ -189,26 +189,18 @@ impl DatabaseManager {
                 query_builder.push(", ");
             }
 
-            let state_str = match ant.state {
-                AntState::Wandering => "wandering",
-                AntState::SeekingFood => "seeking_food",
-                AntState::CarryingFood => "carrying_food",
-                AntState::Following => "following",
-                AntState::Exploring => "exploring",
-                AntState::Patrolling => "patrolling",
-                AntState::Dead => "dead",
-            };
+            let state_str = ant.state.as_str();
 
             query_builder.push("(");
             query_builder.push_bind(ant.id);
             query_builder.push(", ");
-            query_builder.push_bind(ant.position.0 as i32);
+            query_builder.push_bind(ant.position_x);
             query_builder.push(", ");
-            query_builder.push_bind(ant.position.1 as i32);
+            query_builder.push_bind(ant.position_y);
             query_builder.push(", ");
-            query_builder.push_bind(ant.angle as i32);
+            query_builder.push_bind(ant.angle);
             query_builder.push(", ");
-            query_builder.push_bind(ant.speed as i32);
+            query_builder.push_bind(ant.current_speed);
             query_builder.push(", ");
             query_builder.push_bind(ant.health);
             query_builder.push(", ");
@@ -234,7 +226,7 @@ impl DatabaseManager {
         Ok(())
     }
 
-    pub async fn batch_update_colonies(&self, colonies: &[FastColony]) -> Result<()> {
+    pub async fn batch_update_colonies(&self, colonies: &[DatabaseColony]) -> Result<()> {
         if colonies.is_empty() {
             return Ok(());
         }
@@ -273,7 +265,7 @@ impl DatabaseManager {
         Ok(())
     }
 
-    pub async fn batch_update_food_sources(&self, food_sources: &[FastFoodSource]) -> Result<()> {
+    pub async fn batch_update_food_sources(&self, food_sources: &[DatabaseFoodSource]) -> Result<()> {
         if food_sources.is_empty() {
             return Ok(());
         }
@@ -335,7 +327,7 @@ impl DatabaseManager {
         Ok(result.rows_affected() as i64)
     }
 
-    pub async fn create_initial_colonies(&self, simulation_id: i32, world_width: i32, world_height: i32) -> Result<Vec<Colony>> {
+    pub async fn create_initial_colonies(&self, simulation_id: i32, world_width: i32, world_height: i32) -> Result<Vec<DatabaseColony>> {
         // Check if colonies already exist
         let existing_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM colonies WHERE simulation_id = $1 AND is_active = true"
@@ -383,7 +375,7 @@ impl DatabaseManager {
             .fetch_one(&self.pool)
             .await?;
 
-            created_colonies.push(Colony {
+            created_colonies.push(DatabaseColony {
                 id: colony_id,
                 simulation_id,
                 name: name.to_string(),
