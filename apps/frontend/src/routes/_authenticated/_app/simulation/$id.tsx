@@ -213,7 +213,7 @@ const SimulationField = ({
 
   if (!simulation) {
     return (
-      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg dark:bg-input/30 dark:border-input">
         <p className="text-gray-500">No active simulation found</p>
       </div>
     )
@@ -497,7 +497,7 @@ const SimulationPage = () => {
       )}
       
       {isLoading ? (
-        <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+        <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg dark:bg-input/30 dark:border-input">
           <div className="text-center">
             <p className="text-gray-500 mb-2">Connecting to simulation...</p>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
