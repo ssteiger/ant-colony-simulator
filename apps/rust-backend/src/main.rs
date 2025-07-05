@@ -26,6 +26,10 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    // Set environment variables to suppress libEGL warnings on macOS
+    std::env::set_var("WGPU_BACKEND", "metal");
+    std::env::set_var("WGPU_POWER_PREFERENCE", "high_performance");
+    
     let args = Args::parse();
 
     // Initialize logging

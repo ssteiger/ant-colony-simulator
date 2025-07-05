@@ -36,10 +36,7 @@ impl AntColonySimulator {
         let mut app = App::new();
         
         // Add default plugins
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: None, // Headless mode
-            ..default()
-        }));
+        app.add_plugins(DefaultPlugins);
 
         // Add Big Brain plugin
         app.add_plugins(BigBrainPlugin::new(Update));
@@ -69,12 +66,14 @@ impl AntColonySimulator {
             ColonyPlugin,
             EnvironmentPlugin,
             PheromonePlugin,
+            RenderingPlugin,
         ));
 
         // Add custom systems
         app.add_systems(Update, (
             simulation_tick_system,
             database_sync_system,
+            update_simulation_stats,
         ));
 
         // Initialize simulation with database data
@@ -100,10 +99,7 @@ impl AntColonySimulator {
         let mut app = App::new();
         
         // Add default plugins
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: None, // Headless mode
-            ..default()
-        }));
+        app.add_plugins(DefaultPlugins);
 
         // Add Big Brain plugin
         app.add_plugins(BigBrainPlugin::new(Update));
@@ -133,10 +129,14 @@ impl AntColonySimulator {
             ColonyPlugin,
             EnvironmentPlugin,
             PheromonePlugin,
+            RenderingPlugin,
         ));
 
         // Add custom systems (without database sync for test)
-        app.add_systems(Update, simulation_tick_system);
+        app.add_systems(Update, (
+            simulation_tick_system,
+            update_simulation_stats,
+        ));
 
         // Add some test entities
         Self::add_test_entities(&mut app);
@@ -411,6 +411,32 @@ fn database_sync_system(
     // Implementation depends on the database manager
 }
 
+/// System to update simulation stats based on the current entities in the world
+fn update_simulation_stats(
+    mut stats: ResMut<SimulationStats>,
+    ants: Query<(&AntPhysics, &AntHealth, &AntState), With<Ant>>,
+    colonies: Query<(&ColonyProperties, &ColonyResources), With<Colony>>,
+    food_sources: Query<(&FoodSourceProperties, &Transform), With<FoodSource>>,
+) {
+    // Count total ants
+    stats.total_ants = ants.iter().count() as i32;
+    
+    // Count active colonies
+    stats.active_colonies = colonies.iter().count() as i32;
+    
+    // Calculate total food collected from colonies
+    let mut total_food = 0.0;
+    for (_, colony_resources) in colonies.iter() {
+        for (_, amount) in &colony_resources.resources {
+            total_food += amount;
+        }
+    }
+    stats.total_food_collected = total_food;
+    
+    // Count pheromone trails (this would need to be implemented when pheromones are added)
+    stats.pheromone_trail_count = 0; // Placeholder
+}
+
 // ============================================================================
 // PLUGIN
 // ============================================================================
@@ -422,6 +448,7 @@ impl Plugin for AntColonySimulationPlugin {
         app.add_systems(Update, (
             simulation_tick_system,
             database_sync_system,
+            update_simulation_stats,
         ));
     }
 } 
