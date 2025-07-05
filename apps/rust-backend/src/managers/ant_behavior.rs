@@ -107,12 +107,12 @@ pub fn ant_health_system(
         
         // Energy decay
         let old_energy = health.energy;
-        health.energy = (health.energy - 1.0).max(0.0);
+        //health.energy = (health.energy - 1.0).max(0.0);
         
         // Health decay if no energy
         let old_health = health.health;
         if health.energy <= 0.0 {
-            health.health = (health.health - 5.0).max(0.0);
+            //health.health = (health.health - 5.0).max(0.0);
         }
 
         // Log significant health changes
