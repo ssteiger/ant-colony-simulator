@@ -195,6 +195,7 @@ pub fn colony_upgrade_system(
     }
 }
 
+/*
 /// System to manage colony territory and aggression
 #[instrument(skip(commands, colonies, ants))]
 pub fn colony_territory_system(
@@ -275,6 +276,7 @@ pub fn colony_territory_system(
         );
     }
 }
+*/
 
 /// System to manage colony statistics
 #[instrument(skip(stats, colonies, ants))]
@@ -426,7 +428,7 @@ impl Plugin for ColonyPlugin {
             colony_spawning_system,
             colony_resource_consumption_system,
             colony_upgrade_system,
-            colony_territory_system,
+            //colony_territory_system,
             colony_stats_system,
         ));
         debug!("ColonyPlugin systems registered");
