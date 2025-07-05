@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use crate::models::*;
 use crate::utils::{WORLD_WIDTH, WORLD_HEIGHT, world_center};
+use bevy::asset::AssetServer;
+use bevy::ecs::system::Resource;
 
 /// Marker component for the main game camera
 #[derive(Component)]
@@ -9,6 +11,10 @@ pub struct MainCamera;
 /// Marker component for the UI camera
 #[derive(Component)]
 pub struct UiCamera;
+
+/// Resource to store the ant texture handle
+#[derive(Resource, Clone)]
+pub struct AntTexture(pub Handle<Image>);
 
 /// Plugin for rendering ant colony simulation entities
 pub struct RenderingPlugin;
@@ -29,7 +35,7 @@ impl Plugin for RenderingPlugin {
 }
 
 /// Setup rendering components and camera
-fn setup_rendering(mut commands: Commands) {
+fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Use world constants for consistent positioning
     let (center_x, center_y) = world_center();
     
@@ -110,6 +116,12 @@ fn setup_rendering(mut commands: Commands) {
             ));
         });
     });
+
+    // Load ant.png texture and insert as resource
+    let ant_texture: Handle<Image> = asset_server.load("ant.png");
+    println!("Loading ant texture: ant.png");
+    println!("Ant texture handle: {:?}", ant_texture);
+    commands.insert_resource(AntTexture(ant_texture));
 }
 
 /// Camera system for following and zooming
@@ -182,21 +194,47 @@ fn ui_system(
 fn update_ant_rendering(
     mut commands: Commands,
     ants: Query<(Entity, &AntPhysics, &AntType, &AntState), (With<Ant>, Without<Sprite>)>,
+    ant_texture: Res<AntTexture>,
+    asset_server: Res<AssetServer>,
 ) {
     for (entity, physics, ant_type, _state) in ants.iter() {
-        // More robust entity existence check
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
-            entity_commands.insert(SpriteBundle {
+        // Use a more robust approach to check if entity exists and add sprite bundle
+        let is_texture_loaded = asset_server.get_load_state(ant_texture.0.clone()) == bevy::asset::LoadState::Loaded;
+        
+        if is_texture_loaded {
+            commands.entity(entity).insert(SpriteBundle {
+                texture: ant_texture.0.clone(),
                 sprite: Sprite {
-                    // color: Color::hsl(ant_type.color_hue, 0.8, 0.6),
-                    color: Color::BLACK,
-                    custom_size: Some(Vec2::new(4.0, 6.0)), // Small ant size
+                    custom_size: Some(Vec2::new(32.0, 32.0)), // Smaller size for better visibility
                     ..default()
                 },
                 transform: Transform::from_translation(Vec3::new(
                     physics.position.x,
                     physics.position.y,
-                    10.0, // Above background
+                    50.0, // Higher Z to ensure it's above background
+                )).with_rotation(Quat::from_rotation_z(physics.rotation)),
+                ..default()
+            });
+        } else {
+            // Fallback: render as colored rectangle based on ant role
+            let color = match ant_type.role.as_str() {
+                "worker" => Color::rgb(0.8, 0.6, 0.2), // Brown
+                "soldier" => Color::rgb(0.6, 0.2, 0.2), // Red
+                "scout" => Color::rgb(0.2, 0.6, 0.8),   // Blue
+                "queen" => Color::rgb(0.8, 0.2, 0.8),   // Purple
+                _ => Color::rgb(0.5, 0.5, 0.5),         // Gray default
+            };
+            
+            commands.entity(entity).insert(SpriteBundle {
+                sprite: Sprite {
+                    color,
+                    custom_size: Some(Vec2::new(16.0, 16.0)),
+                    ..default()
+                },
+                transform: Transform::from_translation(Vec3::new(
+                    physics.position.x,
+                    physics.position.y,
+                    50.0,
                 )).with_rotation(Quat::from_rotation_z(physics.rotation)),
                 ..default()
             });
@@ -210,22 +248,19 @@ fn update_colony_rendering(
     colonies: Query<(Entity, &ColonyProperties), (With<Colony>, Without<Sprite>)>,
 ) {
     for (entity, properties) in colonies.iter() {
-        // More robust entity existence check
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
-            entity_commands.insert(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::hsl(properties.color_hue, 0.9, 0.5),
-                    custom_size: Some(Vec2::new(properties.radius * 2.0, properties.radius * 2.0)),
-                    ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(
-                    properties.center.x,
-                    properties.center.y,
-                    5.0,
-                )),
+        commands.entity(entity).insert(SpriteBundle {
+            sprite: Sprite {
+                color: Color::hsl(properties.color_hue, 0.9, 0.5),
+                custom_size: Some(Vec2::new(properties.radius * 2.0, properties.radius * 2.0)),
                 ..default()
-            });
-        }
+            },
+            transform: Transform::from_translation(Vec3::new(
+                properties.center.x,
+                properties.center.y,
+                5.0,
+            )),
+            ..default()
+        });
     }
 }
 
@@ -235,33 +270,30 @@ fn update_food_source_rendering(
     food_sources: Query<(Entity, &FoodSourceProperties, &Transform), (With<FoodSource>, Without<Sprite>)>,
 ) {
     for (entity, properties, transform) in food_sources.iter() {
-        // More robust entity existence check
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
-            // Calculate food source size based on amount
-            let size = (properties.amount / properties.max_amount * 20.0).max(5.0);
-            
-            // Choose color based on food type
-            let color = match properties.food_type.as_str() {
-                "berries" => Color::rgb(0.8, 0.2, 0.2), // Red
-                "leaves" => Color::rgb(0.2, 0.8, 0.2),  // Green
-                "seeds" => Color::rgb(0.8, 0.8, 0.2),   // Yellow
-                _ => Color::rgb(0.6, 0.4, 0.2),         // Brown
-            };
+        // Calculate food source size based on amount
+        let size = (properties.amount / properties.max_amount * 20.0).max(5.0);
+        
+        // Choose color based on food type
+        let color = match properties.food_type.as_str() {
+            "berries" => Color::rgb(0.8, 0.2, 0.2), // Red
+            "leaves" => Color::rgb(0.2, 0.8, 0.2),  // Green
+            "seeds" => Color::rgb(0.8, 0.8, 0.2),   // Yellow
+            _ => Color::rgb(0.6, 0.4, 0.2),         // Brown
+        };
 
-            entity_commands.insert(SpriteBundle {
-                sprite: Sprite {
-                    color,
-                    custom_size: Some(Vec2::new(size, size)),
-                    ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(
-                    transform.translation.x,
-                    transform.translation.y,
-                    5.0,
-                )),
+        commands.entity(entity).insert(SpriteBundle {
+            sprite: Sprite {
+                color,
+                custom_size: Some(Vec2::new(size, size)),
                 ..default()
-            });
-        }
+            },
+            transform: Transform::from_translation(Vec3::new(
+                transform.translation.x,
+                transform.translation.y,
+                5.0,
+            )),
+            ..default()
+        });
     }
 }
 
@@ -271,29 +303,26 @@ fn update_pheromone_rendering(
     pheromones: Query<(Entity, &PheromoneProperties, &Transform), (With<PheromoneTrail>, Without<Sprite>)>,
 ) {
     for (entity, properties, transform) in pheromones.iter() {
-        // More robust entity existence check
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
-            // Choose color based on pheromone type
-            let color = match properties.trail_type {
-                PheromoneType::Food => Color::rgba(0.2, 0.8, 0.2, 0.3),     // Green
-                PheromoneType::Danger => Color::rgba(0.8, 0.2, 0.2, 0.3),   // Red
-                PheromoneType::Home => Color::rgba(0.2, 0.2, 0.8, 0.3),     // Blue
-                PheromoneType::Exploration => Color::rgba(0.8, 0.8, 0.2, 0.3), // Yellow
-            };
+        // Choose color based on pheromone type
+        let color = match properties.trail_type {
+            PheromoneType::Food => Color::rgba(0.2, 0.8, 0.2, 0.3),     // Green
+            PheromoneType::Danger => Color::rgba(0.8, 0.2, 0.2, 0.3),   // Red
+            PheromoneType::Home => Color::rgba(0.2, 0.2, 0.8, 0.3),     // Blue
+            PheromoneType::Exploration => Color::rgba(0.8, 0.8, 0.2, 0.3), // Yellow
+        };
 
-            // Size based on strength
-            let size = (properties.strength / properties.max_strength * 8.0).max(1.0);
+        // Size based on strength
+        let size = (properties.strength / properties.max_strength * 8.0).max(1.0);
 
-            entity_commands.insert(SpriteBundle {
-                sprite: Sprite {
-                    color,
-                    custom_size: Some(Vec2::new(size, size)),
-                    ..default()
-                },
-                transform: transform.clone(),
+        commands.entity(entity).insert(SpriteBundle {
+            sprite: Sprite {
+                color,
+                custom_size: Some(Vec2::new(size, size)),
                 ..default()
-            });
-        }
+            },
+            transform: transform.clone(),
+            ..default()
+        });
     }
 }
 
