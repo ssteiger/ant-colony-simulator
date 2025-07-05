@@ -39,14 +39,22 @@ pub fn ant_movement_system(
                 velocity
             }
             (AntState::SeekingFood, AntTarget::Food(_)) => {
-                // Move towards food target
-                trace!("Ant {:?} seeking food target", entity);
-                Vec2::ZERO // Will be calculated based on target position
+                // For now, just wander when seeking food - will be handled by separate system
+                let mut rng = rand::thread_rng();
+                let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
+                let velocity = Vec2::new(angle.cos(), angle.sin()) * physics.max_speed * 0.5;
+                trace!("Ant {:?} seeking food (wandering): velocity=({:.2}, {:.2})", 
+                       entity, velocity.x, velocity.y);
+                velocity
             }
             (AntState::CarryingFood, AntTarget::Colony(_)) => {
-                // Move towards colony
-                trace!("Ant {:?} carrying food to colony", entity);
-                Vec2::ZERO // Will be calculated based on target position
+                // For now, just wander when carrying food - will be handled by separate system
+                let mut rng = rand::thread_rng();
+                let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
+                let velocity = Vec2::new(angle.cos(), angle.sin()) * physics.max_speed * 0.5;
+                trace!("Ant {:?} carrying food (wandering): velocity=({:.2}, {:.2})", 
+                       entity, velocity.x, velocity.y);
+                velocity
             }
             (AntState::Following, AntTarget::Position(pos)) => {
                 // Move towards specific position
@@ -64,9 +72,10 @@ pub fn ant_movement_system(
 
         // Apply acceleration towards target velocity
         let velocity_diff = target_velocity - physics.velocity;
-        let acceleration = velocity_diff.normalize() * physics.acceleration * delta_time;
-        
-        physics.velocity += acceleration;
+        if velocity_diff.length() > 0.1 {
+            let acceleration = velocity_diff.normalize() * physics.acceleration * delta_time;
+            physics.velocity += acceleration;
+        }
         
         // Clamp velocity to max speed
         if physics.velocity.length() > physics.max_speed {
@@ -93,6 +102,74 @@ pub fn ant_movement_system(
             debug!("Ant {:?} moved {:.2} units from ({:.2}, {:.2}) to ({:.2}, {:.2})", 
                    entity, distance_moved, old_position.x, old_position.y, 
                    physics.position.x, physics.position.y);
+        }
+    }
+}
+
+// Separate system to handle targeted movement towards food and colonies
+pub fn ant_targeted_movement_system(
+    mut ants: Query<(
+        &mut AntPhysics,
+        &AntState,
+        &AntTarget,
+        Entity,
+    ), With<Ant>>,
+    food_sources: Query<(&FoodSourceProperties, &Transform, Entity), With<FoodSource>>,
+    colonies: Query<(&ColonyProperties, &Transform, Entity), With<Colony>>,
+    time: Res<Time>,
+) {
+    for (mut physics, state, target, entity) in ants.iter_mut() {
+        let delta_time = time.delta_seconds();
+        
+        // Calculate targeted movement
+        let target_velocity = match (state, target) {
+            (AntState::SeekingFood, AntTarget::Food(food_entity)) => {
+                // Move towards food target
+                if let Ok((_food_props, food_transform, _)) = food_sources.get(*food_entity) {
+                    let food_pos = food_transform.translation.truncate();
+                    let direction = (food_pos - physics.position).normalize();
+                    let velocity = direction * physics.max_speed;
+                    trace!("Ant {:?} seeking food at ({:.2}, {:.2}), velocity=({:.2}, {:.2})", 
+                           entity, food_pos.x, food_pos.y, velocity.x, velocity.y);
+                    velocity
+                } else {
+                    trace!("Ant {:?} seeking food but target entity {:?} not found", entity, food_entity);
+                    Vec2::ZERO
+                }
+            }
+            (AntState::CarryingFood, AntTarget::Colony(colony_entity)) => {
+                // Move towards colony
+                if let Ok((_colony_props, colony_transform, _)) = colonies.get(*colony_entity) {
+                    let colony_pos = colony_transform.translation.truncate();
+                    let direction = (colony_pos - physics.position).normalize();
+                    let velocity = direction * physics.max_speed;
+                    trace!("Ant {:?} carrying food to colony at ({:.2}, {:.2}), velocity=({:.2}, {:.2})", 
+                           entity, colony_pos.x, colony_pos.y, velocity.x, velocity.y);
+                    velocity
+                } else {
+                    trace!("Ant {:?} carrying food but colony entity {:?} not found", entity, colony_entity);
+                    Vec2::ZERO
+                }
+            }
+            _ => Vec2::ZERO,
+        };
+
+        // Apply targeted movement
+        if target_velocity.length() > 0.1 {
+            let velocity_diff = target_velocity - physics.velocity;
+            if velocity_diff.length() > 0.1 {
+                let acceleration = velocity_diff.normalize() * physics.acceleration * delta_time;
+                physics.velocity += acceleration;
+            }
+            
+            // Clamp velocity to max speed
+            if physics.velocity.length() > physics.max_speed {
+                physics.velocity = physics.velocity.normalize() * physics.max_speed;
+            }
+
+            // Update position
+            let velocity = physics.velocity;
+            physics.position += velocity * delta_time;
         }
     }
 }
@@ -174,8 +251,6 @@ pub fn ant_ai_system(
         &AntPhysics,
         Entity,
     ), With<Ant>>,
-    food_sources: Query<&FoodSourceProperties, With<FoodSource>>,
-    colonies: Query<&ColonyProperties, With<Colony>>,
     pheromones: Query<&PheromoneProperties, With<PheromoneTrail>>,
 ) {
     for (mut state, mut target, health, resources, memory, physics, entity) in ants.iter_mut() {
@@ -187,23 +262,94 @@ pub fn ant_ai_system(
             if old_state != *state {
                 info!("Ant {:?} switching to CarryingFood (energy: {:.1}, resources: {:.1})", 
                       entity, health.energy, resources.current_weight);
+                
+                // For now, just set a random colony target - will be refined by separate system
+                *target = AntTarget::None;
             }
         } else if health.energy > 50.0 && resources.resources.is_empty() {
             *state = AntState::SeekingFood;
             if old_state != *state {
                 info!("Ant {:?} switching to SeekingFood (energy: {:.1})", entity, health.energy);
+                
+                // For now, just set a random food target - will be refined by separate system
+                *target = AntTarget::None;
             }
         } else {
             *state = AntState::Wandering;
             if old_state != *state {
                 debug!("Ant {:?} switching to Wandering (energy: {:.1}, resources: {:.1})", 
                        entity, health.energy, resources.current_weight);
+                *target = AntTarget::None;
             }
         }
 
         // Log AI decision making
         trace!("Ant {:?} AI decision: state={:?}, energy={:.1}, resources={:.1}, known_food_sources={}", 
                entity, *state, health.energy, resources.current_weight, memory.known_food_sources.len());
+    }
+}
+
+// Separate system to set targets for ants
+pub fn ant_target_setting_system(
+    mut ants: Query<(
+        &mut AntTarget,
+        &AntState,
+        &AntPhysics,
+        Entity,
+    ), With<Ant>>,
+    food_sources: Query<(&FoodSourceProperties, &Transform, Entity), With<FoodSource>>,
+    colonies: Query<(&ColonyProperties, &Transform, Entity), With<Colony>>,
+) {
+    for (mut target, state, physics, entity) in ants.iter_mut() {
+        match state {
+            AntState::SeekingFood => {
+                // Find nearest food source
+                let mut nearest_food = None;
+                let mut nearest_distance = f32::INFINITY;
+                
+                for (food_props, food_transform, food_entity) in food_sources.iter() {
+                    if food_props.amount > 0.0 { // Only target food sources with food
+                        let distance = physics.position.distance(food_transform.translation.truncate());
+                        if distance < nearest_distance {
+                            nearest_distance = distance;
+                            nearest_food = Some(food_entity);
+                        }
+                    }
+                }
+                
+                if let Some(food_entity) = nearest_food {
+                    *target = AntTarget::Food(food_entity);
+                    debug!("Ant {:?} targeting food source {:?} at distance {:.1}", entity, food_entity, nearest_distance);
+                } else {
+                    debug!("Ant {:?} can't find any food sources, will wander", entity);
+                    *target = AntTarget::None;
+                }
+            }
+            AntState::CarryingFood => {
+                // Find nearest colony to return to
+                let mut nearest_colony = None;
+                let mut nearest_distance = f32::INFINITY;
+                
+                for (_colony_props, colony_transform, colony_entity) in colonies.iter() {
+                    let distance = physics.position.distance(colony_transform.translation.truncate());
+                    if distance < nearest_distance {
+                        nearest_distance = distance;
+                        nearest_colony = Some(colony_entity);
+                    }
+                }
+                
+                if let Some(colony_entity) = nearest_colony {
+                    *target = AntTarget::Colony(colony_entity);
+                    debug!("Ant {:?} targeting colony {:?} at distance {:.1}", entity, colony_entity, nearest_distance);
+                } else {
+                    warn!("Ant {:?} can't find any colony to return to!", entity);
+                    *target = AntTarget::None;
+                }
+            }
+            _ => {
+                // Keep current target for other states
+            }
+        }
     }
 }
 
@@ -218,7 +364,7 @@ pub fn ant_food_interaction_system(
     ), With<Ant>>,
     mut food_sources: Query<(&mut FoodSourceProperties, &Transform, Entity), With<FoodSource>>,
 ) {
-    for (mut resources, mut health, physics, mut target, mut memory, ant_entity) in ants.iter_mut() {
+    for (mut resources, _health, physics, mut target, mut memory, ant_entity) in ants.iter_mut() {
         for (mut food, food_transform, food_entity) in food_sources.iter_mut() {
             let distance = physics.position.distance(food_transform.translation.truncate());
             
@@ -315,10 +461,12 @@ impl Plugin for AntBehaviorPlugin {
         info!("🔧 Registering AntBehaviorPlugin with systems");
         app.add_systems(Update, (
             ant_movement_system,
+            ant_targeted_movement_system,
             ant_health_system,
             despawn_dead_ants_system,
             cleanup_dead_ants_system,
             ant_ai_system,
+            ant_target_setting_system,
             ant_food_interaction_system,
             ant_colony_interaction_system,
         ));
