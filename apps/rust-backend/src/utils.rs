@@ -25,4 +25,17 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
 
 pub fn angle_between_points(from: (f32, f32), to: (f32, f32)) -> f32 {
     (to.1 - from.1).atan2(to.0 - from.0)
+}
+
+// ============================================================================
+// WORLD CONSTANTS
+// ============================================================================
+
+/// Default world dimensions for the simulation
+pub const WORLD_WIDTH: f32 = 1000.0;
+pub const WORLD_HEIGHT: f32 = 1000.0;
+
+/// Calculate the center of the world
+pub fn world_center() -> (f32, f32) {
+    (WORLD_WIDTH / 2.0, WORLD_HEIGHT / 2.0)
 } 

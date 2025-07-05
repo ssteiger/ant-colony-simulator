@@ -340,14 +340,12 @@ impl DatabaseManager {
             return self.load_colonies(simulation_id).await;
         }
 
-        // Create two initial colonies
-        let spacing = (world_width.min(world_height) as f32 * 0.4) as i32;
+        // Create a single colony at the center of the world
         let center_x = world_width / 2;
         let center_y = world_height / 2;
 
         let colonies_data = vec![
-            ("Red Colony", center_x - spacing / 2, center_y, 0),
-            ("Blue Colony", center_x + spacing / 2, center_y, 240),
+            ("Central Colony", center_x, center_y, 0),
         ];
 
         let mut created_colonies = Vec::new();

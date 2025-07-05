@@ -358,7 +358,7 @@ pub fn pheromone_visualization_system(
         // In a real implementation, you'd update sprite colors or create visual effects
         let alpha = pheromone.strength / pheromone.max_strength;
         let color = match pheromone.trail_type {
-            PheromoneType::Food => Color::GREEN,
+            PheromoneType::Food => Color::YELLOW,
             PheromoneType::Danger => Color::RED,
             PheromoneType::Home => Color::BLUE,
             PheromoneType::Exploration => Color::YELLOW,
@@ -421,7 +421,7 @@ impl Plugin for PheromonePlugin {
             pheromone_creation_system,
             pheromone_detection_system,
             pheromone_merging_system,
-            danger_pheromone_system,
+            // danger_pheromone_system,  // Temporarily deactivated
             danger_avoidance_system,
             pheromone_stats_system,
             pheromone_visualization_system,

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::models::*;
+use crate::utils::{WORLD_WIDTH, WORLD_HEIGHT, world_center};
 
 /// Marker component for the main game camera
 #[derive(Component)]
@@ -29,10 +30,13 @@ impl Plugin for RenderingPlugin {
 
 /// Setup rendering components and camera
 fn setup_rendering(mut commands: Commands) {
-    // Spawn main game camera
+    // Use world constants for consistent positioning
+    let (center_x, center_y) = world_center();
+    
+    // Spawn main game camera at the center of the world
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1000.0)),
+            transform: Transform::from_translation(Vec3::new(center_x, center_y, 1000.0)),
             camera: Camera {
                 order: 0, // Main camera renders first
                 ..default()
@@ -42,21 +46,21 @@ fn setup_rendering(mut commands: Commands) {
         MainCamera, // Marker component
     ));
 
-    // Add background
+    // Add background centered on the world
     commands.spawn(SpriteBundle {
         sprite: Sprite {
-            color: Color::WHITE, // Dark green background
-            custom_size: Some(Vec2::new(1000.0, 1000.0)),
+            color: Color::WHITE, // White background
+            custom_size: Some(Vec2::new(WORLD_WIDTH, WORLD_HEIGHT)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
+        transform: Transform::from_translation(Vec3::new(center_x, center_y, -1.0)),
         ..default()
     });
 
     // Add UI camera
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1001.0)),
+            transform: Transform::from_translation(Vec3::new(center_x, center_y, 1001.0)),
             camera: Camera {
                 order: 1, // UI camera renders on top
                 ..default()
@@ -110,11 +114,32 @@ fn setup_rendering(mut commands: Commands) {
 
 /// Camera system for following and zooming
 fn camera_system(
-    mut camera_query: Query<&mut Transform, (With<Camera>, With<MainCamera>)>,
+    mut params: ParamSet<(
+        Query<&mut Transform, (With<Camera>, With<MainCamera>)>,
+        Query<&Transform, With<Colony>>,
+    )>,
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
 ) {
-    if let Ok(mut camera_transform) = camera_query.get_single_mut() {
+    // Get colony position first
+    let colony_position = params.p1().get_single().ok().map(|colony_transform| {
+        Vec3::new(
+            colony_transform.translation.x,
+            colony_transform.translation.y,
+            1000.0, // Keep camera at same Z level
+        )
+    });
+    
+    // Then update camera
+    if let Ok(mut camera_transform) = params.p0().get_single_mut() {
+        // Auto-center camera on the first colony found
+        if let Some(target_position) = colony_position {
+            // Smooth camera movement towards colony center
+            let lerp_factor = 0.1; // Adjust for smoother/faster movement
+            camera_transform.translation = camera_transform.translation.lerp(target_position, lerp_factor);
+        }
+        
+        // Manual camera movement with WASD keys
         let mut movement = Vec3::ZERO;
         let speed = 200.0 * time.delta_seconds();
 

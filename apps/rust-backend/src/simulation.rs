@@ -3,6 +3,7 @@ use big_brain::prelude::*;
 use crate::models::*;
 use crate::managers::*;
 use crate::database::DatabaseManager;
+use crate::utils::{WORLD_WIDTH, WORLD_HEIGHT, world_center};
 use anyhow::Result;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -94,8 +95,8 @@ impl AntColonySimulator {
         let runtime = Runtime::new()?;
         
         let world_bounds = WorldBounds {
-            width: 1000.0,
-            height: 1000.0,
+            width: WORLD_WIDTH,
+            height: WORLD_HEIGHT,
         };
 
         // Create Bevy app
@@ -156,12 +157,15 @@ impl AntColonySimulator {
     }
 
     fn add_test_entities(app: &mut App) {
-        // Add a test colony
+        // Use world constants for consistent positioning
+        let (center_x, center_y) = world_center();
+        
+        // Add a test colony at the center of the screen
         app.world.spawn((
             Colony,
             ColonyProperties {
                 name: "Test Colony".to_string(),
-                center: Vec2::new(500.0, 500.0),
+                center: Vec2::new(center_x, center_y),
                 radius: 50.0,
                 population: 10,
                 max_population: 100,
@@ -178,10 +182,10 @@ impl AntColonySimulator {
                 max_level: 10,
                 upgrade_cost: HashMap::new(),
             },
-            Transform::from_translation(Vec3::new(500.0, 500.0, 0.0)),
+            Transform::from_translation(Vec3::new(center_x, center_y, 0.0)),
         ));
 
-        // Add a test food source
+        // Add a test food source near the center
         app.world.spawn((
             FoodSource,
             FoodSourceProperties {
@@ -194,14 +198,14 @@ impl AntColonySimulator {
                 spoilage_rate: 0.01,
                 discovery_difficulty: 0.5,
             },
-            Transform::from_translation(Vec3::new(200.0, 200.0, 0.0)),
+            Transform::from_translation(Vec3::new(center_x + 150.0, center_y + 150.0, 0.0)),
         ));
 
-        // Add a test ant
+        // Add a test ant at the center
         app.world.spawn((
             Ant,
             AntPhysics {
-                position: Vec2::new(500.0, 500.0),
+                position: Vec2::new(center_x, center_y),
                 velocity: Vec2::ZERO,
                 max_speed: 50.0,
                 acceleration: 100.0,
@@ -240,7 +244,7 @@ impl AntColonySimulator {
                 color_hue: 0.0,
                 special_abilities: Vec::new(),
             },
-            Transform::from_translation(Vec3::new(500.0, 500.0, 0.0)),
+            Transform::from_translation(Vec3::new(center_x, center_y, 0.0)),
         ));
     }
 
