@@ -37,6 +37,9 @@ impl AntColonySimulator {
         
         // Add default plugins
         app.add_plugins(DefaultPlugins);
+        
+        // Set custom clear color to match background
+        app.insert_resource(ClearColor(Color::rgb(0.2, 0.4, 0.1)));
 
         // Add Big Brain plugin
         app.add_plugins(BigBrainPlugin::new(Update));
@@ -100,6 +103,9 @@ impl AntColonySimulator {
         
         // Add default plugins
         app.add_plugins(DefaultPlugins);
+        
+        // Set custom clear color to match background
+        app.insert_resource(ClearColor(Color::rgb(0.2, 0.4, 0.1)));
 
         // Add Big Brain plugin
         app.add_plugins(BigBrainPlugin::new(Update));
