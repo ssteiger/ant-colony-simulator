@@ -11,12 +11,14 @@ pub fn food_regeneration_system(
     mut food_sources: Query<&mut FoodSourceProperties, With<FoodSource>>,
     simulation_state: Res<SimulationState>,
 ) {
+    debug!("running food_regeneration_system");
     for mut food in food_sources.iter_mut() {
         if food.is_renewable && food.amount < food.max_amount {
             // Regenerate food over time
             food.amount = (food.amount + food.regeneration_rate).min(food.max_amount);
         }
     }
+    debug!("food_regeneration_system returning");
 }
 
 /// System to manage food source spoilage
@@ -25,6 +27,7 @@ pub fn food_spoilage_system(
     mut food_sources: Query<(Entity, &mut FoodSourceProperties), With<FoodSource>>,
     simulation_state: Res<SimulationState>,
 ) {
+    debug!("running food_spoilage_system");
     for (entity, mut food) in food_sources.iter_mut() {
         // Apply spoilage
         food.amount = (food.amount - food.spoilage_rate).max(0.0);
@@ -34,6 +37,7 @@ pub fn food_spoilage_system(
             commands.entity(entity).despawn();
         }
     }
+    debug!("food_spoilage_system returning");
 }
 
 /// System to spawn new food sources
@@ -43,6 +47,7 @@ pub fn food_spawning_system(
     simulation_state: Res<SimulationState>,
     world_bounds: Res<WorldBounds>,
 ) {
+    debug!("running food_spawning_system");
     // Spawn new food sources periodically
     if simulation_state.current_tick % 5000 == 0 {
         let current_food_count = food_sources.iter().count();
@@ -52,6 +57,7 @@ pub fn food_spawning_system(
             spawn_random_food_source(&mut commands, &world_bounds);
         }
     }
+    debug!("food_spawning_system returning");
 }
 
 /// System to manage weather effects
@@ -59,6 +65,7 @@ pub fn weather_system(
     mut ants: Query<(&mut AntHealth, &AntPhysics), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
+    debug!("running weather_system");
     // Simulate weather effects on ants
     for (mut health, physics) in ants.iter_mut() {
         // Rain reduces ant speed and energy
@@ -73,6 +80,7 @@ pub fn weather_system(
             health.health = (health.health - 0.5).max(0.0);
         }
     }
+    debug!("weather_system returning");
 }
 
 /// System to manage day/night cycle
@@ -80,6 +88,7 @@ pub fn day_night_cycle_system(
     mut ants: Query<(&mut AntHealth, &mut AntPhysics), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
+    debug!("running day_night_cycle_system");
     let time_of_day = (simulation_state.current_tick % 24000) as f32 / 24000.0; // 24-hour cycle
     
     for (mut health, mut physics) in ants.iter_mut() {
@@ -93,6 +102,7 @@ pub fn day_night_cycle_system(
             physics.max_speed = 50.0; // Reset to base speed
         }
     }
+    debug!("day_night_cycle_system returning");
 }
 
 /// System to manage seasonal effects
@@ -100,6 +110,7 @@ pub fn seasonal_system(
     mut food_sources: Query<&mut FoodSourceProperties, With<FoodSource>>,
     simulation_state: Res<SimulationState>,
 ) {
+    debug!("running seasonal_system");
     let season_progress = (simulation_state.current_tick % 100000) as f32 / 100000.0; // Seasonal cycle
     
     for mut food in food_sources.iter_mut() {
@@ -111,6 +122,7 @@ pub fn seasonal_system(
             food.regeneration_rate = 1.0;
         }
     }
+    debug!("seasonal_system returning");
 }
 
 /// System to manage environmental hazards
@@ -119,6 +131,7 @@ pub fn environmental_hazards_system(
     mut ants: Query<(Entity, &mut AntHealth, &AntPhysics), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
+    debug!("running environmental_hazards_system");
     for (entity, mut health, physics) in ants.iter_mut() {
         // Random environmental hazards
         if simulation_state.current_tick % 10000 == 0 {
@@ -135,6 +148,7 @@ pub fn environmental_hazards_system(
             }
         }
     }
+    debug!("environmental_hazards_system returning");
 }
 
 /// System to manage world boundaries
@@ -142,6 +156,7 @@ pub fn world_boundaries_system(
     mut ants: Query<&mut AntPhysics, With<Ant>>,
     world_bounds: Res<WorldBounds>,
 ) {
+    debug!("running world_boundaries_system");
     for mut physics in ants.iter_mut() {
         // Keep ants within world bounds
         physics.position.x = physics.position.x.clamp(0.0, world_bounds.width);
@@ -155,6 +170,7 @@ pub fn world_boundaries_system(
             physics.velocity.y *= -0.5;
         }
     }
+    debug!("world_boundaries_system returning");
 }
 
 // ============================================================================
@@ -166,6 +182,7 @@ fn spawn_random_food_source(
     commands: &mut Commands,
     world_bounds: &WorldBounds,
 ) {
+    debug!("running spawn_random_food_source");
     let mut rng = rand::thread_rng();
     
     // Random position
@@ -195,6 +212,7 @@ fn spawn_random_food_source(
         },
         Transform::from_translation(Vec3::new(x, y, 0.0)),
     ));
+    debug!("spawn_random_food_source returning");
 }
 
 /// Plugin for environment management systems
@@ -202,6 +220,7 @@ pub struct EnvironmentPlugin;
 
 impl Plugin for EnvironmentPlugin {
     fn build(&self, app: &mut App) {
+        debug!("running EnvironmentPlugin build");
         app.add_systems(Update, (
             food_regeneration_system,
             food_spoilage_system,
@@ -212,5 +231,6 @@ impl Plugin for EnvironmentPlugin {
             environmental_hazards_system,
             world_boundaries_system,
         ));
+        debug!("EnvironmentPlugin build returning");
     }
 } 
