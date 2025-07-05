@@ -228,7 +228,7 @@ fn update_ant_rendering(
             commands.entity(entity).insert(SpriteBundle {
                 sprite: Sprite {
                     color,
-                    custom_size: Some(Vec2::new(16.0, 16.0)),
+                    custom_size: Some(Vec2::new(12.0, 12.0)),
                     ..default()
                 },
                 transform: Transform::from_translation(Vec3::new(
