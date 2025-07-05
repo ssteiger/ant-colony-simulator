@@ -166,7 +166,7 @@ pub struct PheromoneProperties {
     pub target_food: Option<Entity>,
 }
 
-#[derive(Component, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PheromoneType {
     Food,
     Danger,
