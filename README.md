@@ -59,6 +59,10 @@ npx supabase db reset
 npm install turbo --global
 ```
 
+## Work with LLM
+
+[https://uithub.com/ssteiger/ant-colony-simulator](https://uithub.com/ssteiger/ant-colony-simulator)
+
 ## Simulation architecture
 
 ┌────────────────┐       ┌─────────────────────┐
