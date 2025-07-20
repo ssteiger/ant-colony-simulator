@@ -11,7 +11,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-DEFAULT_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+DEFAULT_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:57322/postgres"
 LOG_LEVEL="${LOG_LEVEL:-info}"
 
 print_header() {

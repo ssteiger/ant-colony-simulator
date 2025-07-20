@@ -14,7 +14,7 @@ export default defineConfig({
 	dbCredentials: {
 		url:
 			process.env.SUPABASE_DB_URL ||
-			"postgres://postgres:postgres@localhost:5432/postgres",
+			"postgres://postgres:postgres@localhost:5732/postgres",
 		ssl: false,
 	},
 	verbose: true,

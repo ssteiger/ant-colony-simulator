@@ -6,7 +6,7 @@ import * as schema from "./generated/schema";
 // Create connection string with fallback
 const connectionString =
 	process.env.SUPABASE_DB_URL ||
-	"postgres://postgres:postgres@localhost:5432/postgres";
+	"postgres://postgres:postgres@localhost:5732/postgres";
 
 // Configure postgres client with better defaults for production
 const postgresClient = postgres(connectionString, {

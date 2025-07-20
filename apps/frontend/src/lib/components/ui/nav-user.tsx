@@ -120,7 +120,7 @@ export function NavUser({
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a
-                  href="http://127.0.0.1:54323/project/default"
+                  href="http://127.0.0.1:57323/project/default"
                   target="_blank"
                   rel="noopener noreferrer"
                 >

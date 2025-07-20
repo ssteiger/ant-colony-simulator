@@ -139,7 +139,7 @@ export function UserAuthFormRegister({ className, ...props }: UserAuthFormProps)
       )}
 
       {isEmailSent && (
-        <a href="http://localhost:54324/" target="_blank" rel="noreferrer">
+        <a href="http://localhost:57324/" target="_blank" rel="noreferrer">
           <Button size="sm" variant="outline" className="w-full">
             Open local email client <ArrowRight className="w-4 h-4 ml-2" />
           </Button>

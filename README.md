@@ -25,7 +25,7 @@ turbo dev
 # run local supabase server
 npm run dev:db
 
-# open supabase dashboard at http://127.0.0.1:54323/project/default
+# open supabase dashboard at http://127.0.0.1:57323/project/default
 
 # run web app
 npm run dev:frontend
