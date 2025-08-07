@@ -238,19 +238,26 @@ impl AntColonySimulator {
             ));
         }
 
-        // Add test ants scattered around the center
-        for i in 0..5 {
-            let angle = (i as f32) * 2.0 * std::f32::consts::PI / 5.0;
+        // Add test ants with different roles
+        for i in 0..8 {
+            let angle = (i as f32) * 2.0 * std::f32::consts::PI / 8.0;
             let radius = 75.0;
             let x = center_x + angle.cos() * radius;
             let y = center_y + angle.sin() * radius;
+            
+            // Mix of scout and worker ants (roughly 25% scouts, 75% workers)
+            let (role, name, speed, capacity, color_hue) = if i < 2 {
+                ("scout", "Scout", 60.0, 20.0, 240.0) // Scouts: faster, less carrying capacity, blue tint
+            } else {
+                ("worker", "Worker", 40.0, 60.0, 30.0) // Workers: slower, more carrying capacity, orange tint
+            };
             
             app.world.spawn((
                 Ant,
                 AntPhysics {
                     position: Vec2::new(x, y),
                     velocity: Vec2::ZERO,
-                    max_speed: 50.0,
+                    max_speed: speed,
                     acceleration: 100.0,
                     rotation: angle,
                     rotation_speed: 2.0,
@@ -265,15 +272,13 @@ impl AntColonySimulator {
                 AntHealth {
                     health: 100.0,
                     max_health: 100.0,
-                    energy: 100.0,
-                    max_energy: 100.0,
                     age_ticks: 0,
                     lifespan_ticks: 10000,
                 },
                 AntState::Wandering,
                 CarriedResources {
                     resources: HashMap::new(),
-                    capacity: 50.0,
+                    capacity: capacity,
                     current_weight: 0.0,
                 },
                 AntTarget::None,
@@ -282,21 +287,21 @@ impl AntColonySimulator {
                     known_colonies: Vec::new(),
                     last_food_source: None,
                     last_action_tick: 0,
-                    pheromone_sensitivity: 0.5,
+                    pheromone_sensitivity: if role == "scout" { 0.8 } else { 1.2 }, // Scouts less sensitive, workers more sensitive
                     visited_positions: Vec::new(),
                     last_stuck_check: 0,
                     stuck_counter: 0,
-                    exploration_radius: 100.0,
+                    exploration_radius: if role == "scout" { 200.0 } else { 100.0 }, // Scouts explore farther
                     path_history: Vec::new(),
                 },
                 AntType {
-                    name: "Worker".to_string(),
-                    role: "worker".to_string(),
-                    base_speed: 50.0,
+                    name: name.to_string(),
+                    role: role.to_string(),
+                    base_speed: speed,
                     base_strength: 10.0,
                     base_health: 100.0,
-                    carrying_capacity: 50.0,
-                    color_hue: 0.0,
+                    carrying_capacity: capacity,
+                    color_hue: color_hue,
                     special_abilities: Vec::new(),
                 },
                 Transform::from_translation(Vec3::new(x, y, 0.0)),
@@ -388,8 +393,6 @@ impl AntColonySimulator {
                 AntHealth {
                     health: ant.health as f32,
                     max_health: 100.0,
-                    energy: ant.energy as f32,
-                    max_energy: 100.0,
                     age_ticks: ant.age_ticks as i64,
                     lifespan_ticks: 10000,
                 },

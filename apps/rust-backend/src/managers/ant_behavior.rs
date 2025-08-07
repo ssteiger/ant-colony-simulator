@@ -7,9 +7,9 @@ use tracing::{debug, info, trace};
 // BIG-BRAIN SCORERS - Decision Inputs for Ant AI
 // ============================================================================
 
-/// Scorer that evaluates how hungry/low-energy an ant is
+/// Scorer that evaluates if ant is a scout (explores for food)
 #[derive(Component, Debug, Clone, ScorerBuilder)]
-pub struct HungryScorer;
+pub struct ScoutScorer;
 
 /// Scorer that evaluates if an ant is carrying food
 #[derive(Component, Debug, Clone, ScorerBuilder)]
@@ -79,24 +79,27 @@ pub struct RestAction;
 #[derive(Component, Debug, Clone, ActionBuilder)]
 pub struct EscapeAction;
 
+/// Action for scout ants to mark found food sources
+#[derive(Component, Debug, Clone, ActionBuilder)]
+pub struct MarkFoodSourceAction;
+
 // ============================================================================
 // SCORER SYSTEMS - Evaluate World State
 // ============================================================================
 
-/// System that scores how hungry an ant is based on energy levels
-pub fn hungry_scorer_system(
-    ant_healths: Query<&AntHealth>,
-    mut scorers: Query<(&Actor, &mut Score), With<HungryScorer>>,
+/// System that scores if ant is a scout (role-based behavior)
+pub fn scout_scorer_system(
+    ant_types: Query<&AntType>,
+    mut scorers: Query<(&Actor, &mut Score), With<ScoutScorer>>,
 ) {
     for (Actor(actor), mut score) in scorers.iter_mut() {
-        if let Ok(health) = ant_healths.get(*actor) {
-            // Convert energy to hunger score (1.0 = very hungry, 0.0 = not hungry)
-            let hunger_score = 1.0 - (health.energy / health.max_energy).clamp(0.0, 1.0);
-            score.set(hunger_score);
+        if let Ok(ant_type) = ant_types.get(*actor) {
+            // Scout ants get high score for exploration behavior
+            let scout_score = if ant_type.role == "scout" { 1.0 } else { 0.0 };
+            score.set(scout_score);
             
-            if hunger_score > 0.7 {
-                trace!("Ant {:?} is hungry (score: {:.2}, energy: {:.1}/{:.1})", 
-                       actor, hunger_score, health.energy, health.max_energy);
+            if scout_score > 0.0 {
+                trace!("Ant {:?} is a scout (score: {:.2})", actor, scout_score);
             }
         }
     }
@@ -188,16 +191,46 @@ pub fn near_colony_scorer_system(
     }
 }
 
-/// System that scores pheromone trail strength (simplified for now)
+/// System that scores pheromone trail strength for worker ants
 pub fn pheromone_strength_scorer_system(
-    _ant_physics: Query<&AntPhysics>,
-    _pheromones: Query<&PheromoneProperties, With<PheromoneTrail>>,
+    ant_physics: Query<&AntPhysics>,
+    ant_types: Query<&AntType>,
+    pheromones: Query<(&PheromoneProperties, &Transform), With<PheromoneTrail>>,
     mut scorers: Query<(&Actor, &mut Score), With<PheromoneStrengthScorer>>,
 ) {
-    for (Actor(_actor), mut score) in scorers.iter_mut() {
-        // Simplified for now since PheromoneProperties doesn't have position
-        let pheromone_score = 0.0;
-        score.set(pheromone_score);
+    for (Actor(actor), mut score) in scorers.iter_mut() {
+        if let (Ok(physics), Ok(ant_type)) = (ant_physics.get(*actor), ant_types.get(*actor)) {
+            // Only worker ants follow pheromone trails
+            if ant_type.role != "worker" {
+                score.set(0.0);
+                continue;
+            }
+            
+            let mut strongest_pheromone: f32 = 0.0;
+            
+            // Find strongest nearby food pheromone trail
+            for (pheromone, pheromone_transform) in pheromones.iter() {
+                if pheromone.trail_type == PheromoneType::Food {
+                    let pheromone_pos = pheromone_transform.translation.truncate();
+                    let distance = physics.position.distance(pheromone_pos);
+                    
+                    // Detection range for pheromones
+                    if distance < 80.0 {
+                        let distance_factor = 1.0 - (distance / 80.0);
+                        let pheromone_influence = pheromone.strength * distance_factor;
+                        strongest_pheromone = strongest_pheromone.max(pheromone_influence);
+                    }
+                }
+            }
+            
+            // Normalize to 0-1 range
+            let pheromone_score = (strongest_pheromone / 100.0).clamp(0.0, 1.0);
+            score.set(pheromone_score);
+            
+            if pheromone_score > 0.3 {
+                trace!("Worker ant {:?} detects pheromone trail (score: {:.2})", actor, pheromone_score);
+            }
+        }
     }
 }
 
@@ -240,16 +273,16 @@ pub fn exploration_urge_scorer_system(
     }
 }
 
-/// System that scores if ant needs rest (very low energy)
+/// System that scores if ant needs rest (based on health, not energy)
 pub fn needs_rest_scorer_system(
     ant_healths: Query<&AntHealth>,
     mut scorers: Query<(&Actor, &mut Score), With<NeedsRestScorer>>,
 ) {
     for (Actor(actor), mut score) in scorers.iter_mut() {
         if let Ok(health) = ant_healths.get(*actor) {
-            // Only need rest if energy is critically low
-            let rest_score = if health.energy < 10.0 {
-                1.0 - (health.energy / 10.0)
+            // Only need rest if health is critically low
+            let rest_score = if health.health < 20.0 {
+                1.0 - (health.health / 20.0)
             } else {
                 0.0
             };
@@ -257,7 +290,7 @@ pub fn needs_rest_scorer_system(
             score.set(rest_score);
             
             if rest_score > 0.0 {
-                debug!("Ant {:?} needs rest (score: {:.2}, energy: {:.1})", actor, rest_score, health.energy);
+                debug!("Ant {:?} needs rest (score: {:.2}, health: {:.1})", actor, rest_score, health.health);
             }
         }
     }
@@ -368,14 +401,14 @@ pub fn seek_food_action_system(
 
 /// System that handles food collection behavior (simplified)
 pub fn collect_food_action_system(
-    mut ants: Query<(&mut CarriedResources, &AntPhysics, &mut AntTarget)>,
+    mut ants: Query<(&mut CarriedResources, &AntPhysics, &mut AntTarget, &mut AntState)>,
     mut food_sources: Query<(&mut FoodSourceProperties, &Transform), With<FoodSource>>,
     mut action_query: Query<(&Actor, &mut ActionState), With<CollectFoodAction>>,
 ) {
     for (Actor(actor), mut action_state) in action_query.iter_mut() {
         match *action_state {
             ActionState::Requested => {
-                if let Ok((mut resources, physics, mut target)) = ants.get_mut(*actor) {
+                if let Ok((mut resources, physics, mut target, mut state)) = ants.get_mut(*actor) {
                     let mut collected = false;
                     
                     for (mut food, food_transform) in food_sources.iter_mut() {
@@ -389,14 +422,194 @@ pub fn collect_food_action_system(
                                 *resources.resources.entry(food.food_type.clone()).or_insert(0.0) += collect_amount;
                                 resources.current_weight += collect_amount;
                                 *target = AntTarget::None;
+                                
+                                // Transition to CarryingFood state after successful collection
+                                *state = AntState::CarryingFood;
+                                
                                 collected = true;
-                                info!("Ant {:?} collected {:.2} food", actor, collect_amount);
+                                info!("Ant {:?} collected {:.2} food and transitioned to CarryingFood state", actor, collect_amount);
                                 break;
                             }
                         }
                     }
                     
                     *action_state = if collected { ActionState::Success } else { ActionState::Failure };
+                }
+            }
+            ActionState::Cancelled => {
+                *action_state = ActionState::Failure;
+            }
+            _ => {}
+        }
+    }
+}
+
+/// System that handles returning to colony with food
+pub fn return_to_colony_action_system(
+    mut ants: Query<(&mut AntTarget, &AntPhysics, &CarriedResources)>,
+    colonies: Query<(Entity, &ColonyProperties, &Transform), With<Colony>>,
+    mut action_query: Query<(&Actor, &mut ActionState), With<ReturnToColonyAction>>,
+) {
+    for (Actor(actor), mut action_state) in action_query.iter_mut() {
+        match *action_state {
+            ActionState::Requested => {
+                if let Ok((mut target, physics, resources)) = ants.get_mut(*actor) {
+                    // Only return to colony if carrying food
+                    if !resources.resources.is_empty() {
+                        // Find nearest colony
+                        let mut nearest_colony = None;
+                        let mut nearest_distance = f32::INFINITY;
+                        
+                        for (colony_entity, colony_props, colony_transform) in colonies.iter() {
+                            let distance = physics.position.distance(colony_transform.translation.truncate());
+                            if distance < nearest_distance {
+                                nearest_distance = distance;
+                                nearest_colony = Some(colony_entity);
+                            }
+                        }
+                        
+                        if let Some(colony_entity) = nearest_colony {
+                            *target = AntTarget::Colony(colony_entity);
+                            *action_state = ActionState::Executing;
+                            debug!("Ant {:?} returning to colony {:?} with food (weight: {:.2})", 
+                                   actor, colony_entity, resources.current_weight);
+                        } else {
+                            *action_state = ActionState::Failure;
+                        }
+                    } else {
+                        *action_state = ActionState::Failure;
+                    }
+                }
+            }
+            ActionState::Executing => {
+                // Check if ant reached colony
+                if let Ok((target, physics, _)) = ants.get(*actor) {
+                    if let AntTarget::Colony(colony_entity) = target {
+                        if let Ok((_, colony_props, colony_transform)) = colonies.get(*colony_entity) {
+                            let distance = physics.position.distance(colony_transform.translation.truncate());
+                            if distance < colony_props.radius + 10.0 {
+                                *action_state = ActionState::Success;
+                                debug!("Ant {:?} reached colony, ready to deposit food", actor);
+                            }
+                        } else {
+                            *action_state = ActionState::Failure;
+                        }
+                    }
+                }
+            }
+            ActionState::Cancelled => {
+                *action_state = ActionState::Failure;
+            }
+            _ => {}
+        }
+    }
+}
+
+/// System that handles depositing food at colony
+pub fn deposit_food_action_system(
+    mut ants: Query<(&mut CarriedResources, &AntPhysics, &mut AntTarget, &mut AntState)>,
+    mut colonies: Query<(&mut ColonyResources, &ColonyProperties, &Transform), With<Colony>>,
+    mut action_query: Query<(&Actor, &mut ActionState), With<DepositFoodAction>>,
+    mut simulation_stats: ResMut<SimulationStats>,
+) {
+    for (Actor(actor), mut action_state) in action_query.iter_mut() {
+        match *action_state {
+            ActionState::Requested => {
+                if let Ok((mut resources, physics, mut target, mut state)) = ants.get_mut(*actor) {
+                    let mut deposited = false;
+                    
+                    // Find nearby colony to deposit food
+                    for (mut colony_resources, colony_props, colony_transform) in colonies.iter_mut() {
+                        let distance = physics.position.distance(colony_transform.translation.truncate());
+                        
+                        if distance < colony_props.radius + 10.0 && !resources.resources.is_empty() {
+                            // Transfer all carried resources to colony
+                            let total_deposited = resources.current_weight;
+                            
+                            for (food_type, amount) in resources.resources.drain() {
+                                *colony_resources.resources.entry(food_type).or_insert(0.0) += amount;
+                                simulation_stats.total_food_collected += amount;
+                            }
+                            
+                            resources.current_weight = 0.0;
+                            *target = AntTarget::None;
+                            
+                            // Transition back to wandering (role determines next behavior)
+                            *state = AntState::Wandering;
+                            
+                            deposited = true;
+                            info!("Ant {:?} deposited {:.2} food at colony", actor, total_deposited);
+                            break;
+                        }
+                    }
+                    
+                    *action_state = if deposited { ActionState::Success } else { ActionState::Failure };
+                }
+            }
+            ActionState::Cancelled => {
+                *action_state = ActionState::Failure;
+            }
+            _ => {}
+        }
+    }
+}
+
+/// System for scout ants to mark found food sources with pheromones
+pub fn mark_food_source_action_system(
+    mut commands: Commands,
+    mut ants: Query<(&AntPhysics, &mut AntTarget, &mut AntState, &mut AntMemory, &AntType)>,
+    food_sources: Query<(Entity, &FoodSourceProperties, &Transform), With<FoodSource>>,
+    mut action_query: Query<(&Actor, &mut ActionState), With<MarkFoodSourceAction>>,
+    simulation_state: Res<SimulationState>,
+) {
+    for (Actor(actor), mut action_state) in action_query.iter_mut() {
+        match *action_state {
+            ActionState::Requested => {
+                if let Ok((physics, mut target, mut state, mut memory, ant_type)) = ants.get_mut(*actor) {
+                    if ant_type.role != "scout" {
+                        *action_state = ActionState::Failure;
+                        continue;
+                    }
+                    
+                    let mut marked = false;
+                    
+                    // Check if scout is near an undiscovered food source
+                    for (food_entity, food_props, food_transform) in food_sources.iter() {
+                        let distance = physics.position.distance(food_transform.translation.truncate());
+                        
+                        if distance < 25.0 && food_props.amount > 0.0 {
+                            // Check if this food source is already known
+                            if !memory.known_food_sources.contains(&food_entity) {
+                                // Mark food source as discovered
+                                memory.known_food_sources.push(food_entity);
+                                
+                                // Create strong food pheromone at food source location
+                                commands.spawn((
+                                    PheromoneTrail,
+                                    PheromoneProperties {
+                                        trail_type: PheromoneType::Food,
+                                        strength: 200.0, // Very strong initial marker
+                                        max_strength: 200.0,
+                                        decay_rate: 0.02, // Slow decay for food markers
+                                        expires_at: simulation_state.current_tick + 30000,
+                                        source_ant: Some(*actor),
+                                        target_food: Some(food_entity),
+                                    },
+                                    Transform::from_translation(food_transform.translation),
+                                ));
+                                
+                                // Set target to return to colony
+                                *target = AntTarget::None;
+                                *state = AntState::Following; // Scout returns following its own trail
+                                
+                                marked = true;
+                                info!("Scout ant {:?} discovered and marked food source {:?}", actor, food_entity);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    *action_state = if marked { ActionState::Success } else { ActionState::Failure };
                 }
             }
             ActionState::Cancelled => {
@@ -421,7 +634,7 @@ impl Plugin for AntBehaviorPlugin {
         
         // Add scorer systems (using Update schedule to match BigBrainPlugin)
         app.add_systems(Update, (
-            hungry_scorer_system,
+            scout_scorer_system,
             carrying_food_scorer_system,
             near_food_scorer_system,
             near_colony_scorer_system,
@@ -436,6 +649,9 @@ impl Plugin for AntBehaviorPlugin {
             wander_action_system,
             seek_food_action_system,
             collect_food_action_system,
+            return_to_colony_action_system,
+            deposit_food_action_system,
+            mark_food_source_action_system,
         ).in_set(BigBrainSet::Actions));
         
         // Add the basic movement system that actually moves the ants

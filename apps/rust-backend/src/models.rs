@@ -45,13 +45,11 @@ pub struct AntPhysics {
     pub obstacle_avoidance_force: Vec2,
 }
 
-/// Health and energy system for ants
+/// Health system for ants (no energy - ants work based on pheromones)
 #[derive(Component, Debug, Clone)]
 pub struct AntHealth {
     pub health: f32,
     pub max_health: f32,
-    pub energy: f32,
-    pub max_energy: f32,
     pub age_ticks: i64,
     pub lifespan_ticks: i64,
 }

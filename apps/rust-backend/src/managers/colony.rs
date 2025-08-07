@@ -432,8 +432,6 @@ fn spawn_ant_batch(
             AntHealth {
                 health: 100.0,
                 max_health: 100.0,
-                energy: 100.0,
-                max_energy: 100.0,
                 age_ticks: 0,
                 lifespan_ticks: 10000,
             },
@@ -520,8 +518,6 @@ fn spawn_ant(
         AntHealth {
             health: 100.0,
             max_health: 100.0,
-            energy: 100.0,
-            max_energy: 100.0,
             age_ticks: 0,
             lifespan_ticks: 10000,
         },

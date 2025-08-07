@@ -80,12 +80,8 @@ pub fn weather_system(
 ) {
     debug!("running weather_system");
     // Simulate weather effects on ants
-    for (mut health, physics) in ants.iter_mut() {
-        // Rain reduces ant speed and energy
-        if simulation_state.current_tick % 1000 < 500 {
-            // Rainy period
-            health.energy = (health.energy - 0.2).max(0.0);
-        }
+    for (mut health, _physics) in ants.iter_mut() {
+        // Rain doesn't affect energy anymore
         
         // Extreme weather can damage ants
         if simulation_state.current_tick % 2000 < 100 {
@@ -104,12 +100,11 @@ pub fn day_night_cycle_system(
     debug!("running day_night_cycle_system");
     let time_of_day = (simulation_state.current_tick % 24000) as f32 / 24000.0; // 24-hour cycle
     
-    for (mut health, mut physics) in ants.iter_mut() {
+    for (_health, mut physics) in ants.iter_mut() {
         // Night time reduces ant activity
         if time_of_day < 0.25 || time_of_day > 0.75 {
             // Night time
             physics.max_speed *= 0.5;
-            health.energy = (health.energy - 0.1).max(0.0);
         } else {
             // Day time - restore normal speed
             physics.max_speed = 50.0; // Reset to base speed

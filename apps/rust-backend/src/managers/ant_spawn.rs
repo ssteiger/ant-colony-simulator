@@ -32,8 +32,6 @@ pub fn spawn_ant_with_big_brain(
         AntHealth {
             health: 100.0,
             max_health: 100.0,
-            energy: 100.0,
-            max_energy: 100.0,
             age_ticks: 0,
             lifespan_ticks: 10000,
         },
@@ -57,28 +55,29 @@ pub fn spawn_ant_with_big_brain(
         AntTarget::None,
         Transform::from_translation(Vec3::new(position.x, position.y, 0.0)),
         
-        // Big-brain AI system
+        // Big-brain AI system - Role-based behavior driven by pheromones
         Thinker::build()
             .picker(Highest) // Choose action with highest utility score
             
             // Critical priorities (survival)
-            .when(NeedsRestScorer, RestAction)
             .when(StuckScorer, EscapeAction)
             
-            // High priority (food management) 
+            // High priority (food management for workers)
             .when(CarryingFoodScorer, ReturnToColonyAction)
+            .when(NearColonyScorer, DepositFoodAction)
             
-            // Medium priority (food acquisition)
-            .when(HungryScorer, CollectFoodAction)
-            .when(HungryScorer, SeekFoodAction)
+            // Medium priority (role-specific behaviors)
+            .when(NearFoodScorer, CollectFoodAction)         // Any ant near food will collect it
+            .when(PheromoneStrengthScorer, FollowPheromoneAction) // Workers follow pheromone trails
+            .when(ScoutScorer, MarkFoodSourceAction)         // Scouts mark discovered food
+            .when(ScoutScorer, ExploreAction)                // Scouts explore when not marking
             
-            // Low priority (exploration and default)
-            .when(ExplorationUrgeScorer, ExploreAction)
+            // Low priority (default wandering)
             .otherwise(WanderAction),
     )).id()
 }
 
-/// System to handle ant health and energy decay
+/// System to handle ant aging (no energy system)
 pub fn ant_health_system(
     mut ants: Query<(&mut AntHealth, &AntPhysics, Entity), With<Ant>>,
 ) {
@@ -86,23 +85,11 @@ pub fn ant_health_system(
         // Age the ant
         health.age_ticks += 1;
         
-        // Energy decay (slower than before)
-        let old_energy = health.energy;
-        health.energy = (health.energy - 0.5).max(0.0);
+        // Health remains stable unless damaged
+        // (Ants work based on pheromones, not energy)
         
-        // Health decay if no energy
-        let old_health = health.health;
-        if health.energy <= 0.0 {
-            health.health = (health.health - 2.0).max(0.0);
-        }
-
-        // Log health changes
-        if old_energy != health.energy && health.energy % 20.0 < 1.0 {
-            debug!("Ant {:?} energy: {:.1} -> {:.1}", entity, old_energy, health.energy);
-        }
-        
-        if old_health != health.health && health.health <= 0.0 {
-            info!("Ant {:?} has died! Health: {:.1} -> {:.1}", entity, old_health, health.health);
+        if health.age_ticks % 1000 == 0 {
+            debug!("Ant {:?} age: {} ticks, health: {:.1}", entity, health.age_ticks, health.health);
         }
     }
 }
