@@ -10,15 +10,18 @@ use tracing::{debug, info, warn, trace};
 pub fn ant_movement_system(
     mut ants: Query<(
         &mut AntPhysics,
+        &mut AntMemory,
         &AntHealth,
         &AntState,
         &AntTarget,
         &mut Transform,
         Entity,
     ), With<Ant>>,
+    world_bounds: Res<WorldBounds>,
+    simulation_state: Res<SimulationState>,
     time: Res<Time>,
 ) {
-    for (mut physics, health, state, target, mut transform, entity) in ants.iter_mut() {
+    for (mut physics, mut memory, health, state, target, mut transform, entity) in ants.iter_mut() {
         if health.health <= 0.0 {
             trace!("Ant {:?} is dead, skipping movement", entity);
             continue; // Skip dead ants
@@ -27,72 +30,45 @@ pub fn ant_movement_system(
         let delta_time = time.delta_seconds();
         let old_position = physics.position;
         
-        // Calculate target velocity based on state and target
-        let target_velocity = match (state, target) {
-            (AntState::Wandering, _) => {
-                // Random movement for wandering ants
-                let mut rng = rand::thread_rng();
-                let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
-                let velocity = Vec2::new(angle.cos(), angle.sin()) * physics.max_speed * 0.3;
-                trace!("Ant {:?} wandering: angle={:.2}, velocity=({:.2}, {:.2})", 
-                       entity, angle, velocity.x, velocity.y);
-                velocity
-            }
-            (AntState::SeekingFood, AntTarget::Food(_)) => {
-                // For now, just wander when seeking food - will be handled by separate system
-                let mut rng = rand::thread_rng();
-                let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
-                let velocity = Vec2::new(angle.cos(), angle.sin()) * physics.max_speed * 0.5;
-                trace!("Ant {:?} seeking food (wandering): velocity=({:.2}, {:.2})", 
-                       entity, velocity.x, velocity.y);
-                velocity
-            }
-            (AntState::CarryingFood, AntTarget::Colony(_)) => {
-                // For now, just wander when carrying food - will be handled by separate system
-                let mut rng = rand::thread_rng();
-                let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
-                let velocity = Vec2::new(angle.cos(), angle.sin()) * physics.max_speed * 0.5;
-                trace!("Ant {:?} carrying food (wandering): velocity=({:.2}, {:.2})", 
-                       entity, velocity.x, velocity.y);
-                velocity
-            }
-            (AntState::Following, AntTarget::Position(pos)) => {
-                // Move towards specific position
-                let direction = (*pos - physics.position).normalize();
-                let velocity = direction * physics.max_speed;
-                trace!("Ant {:?} following to position ({:.2}, {:.2}), velocity=({:.2}, {:.2})", 
-                       entity, pos.x, pos.y, velocity.x, velocity.y);
-                velocity
-            }
-            _ => {
-                trace!("Ant {:?} in state {:?} with target {:?}, no movement", entity, state, target);
-                Vec2::ZERO
-            },
-        };
-
-        // Apply acceleration towards target velocity
-        let velocity_diff = target_velocity - physics.velocity;
-        if velocity_diff.length() > 0.1 {
-            let acceleration = velocity_diff.normalize() * physics.acceleration * delta_time;
-            physics.velocity += acceleration;
-        }
+        // Check if ant is stuck
+        let is_stuck = check_if_stuck(&mut physics, &mut memory, simulation_state.current_tick);
         
-        // Clamp velocity to max speed
-        if physics.velocity.length() > physics.max_speed {
-            physics.velocity = physics.velocity.normalize() * physics.max_speed;
-        }
-
-        // Update position
-        let velocity = physics.velocity;
-        physics.position += velocity * delta_time;
+        // Calculate desired direction based on state and target
+        let desired_direction = calculate_desired_direction(
+            &physics,
+            &memory,
+            state,
+            target,
+            &world_bounds,
+            is_stuck,
+            entity
+        );
+        
+        // Apply steering behaviors
+        let steering_force = calculate_steering_force(
+            &mut physics,
+            desired_direction,
+            &world_bounds,
+            delta_time
+        );
+        
+        // Update physics with smooth movement
+        update_ant_physics(&mut physics, steering_force, delta_time);
+        
+        // Update position history
+        update_position_history(&mut physics, &mut memory);
+        
+        // Boundary enforcement
+        enforce_world_boundaries(&mut physics, &world_bounds);
         
         // Update transform
         transform.translation.x = physics.position.x;
         transform.translation.y = physics.position.y;
         
-        // Update rotation based on velocity direction
+        // Smooth rotation based on movement direction
         if physics.velocity.length() > 0.1 {
-            physics.rotation = physics.velocity.y.atan2(physics.velocity.x);
+            let target_rotation = physics.velocity.y.atan2(physics.velocity.x);
+            physics.rotation = lerp_angle(physics.rotation, target_rotation, physics.turn_smoothness * delta_time);
             transform.rotation = Quat::from_rotation_z(physics.rotation);
         }
 
@@ -106,72 +82,355 @@ pub fn ant_movement_system(
     }
 }
 
+/// Check if an ant is stuck in the same area
+fn check_if_stuck(physics: &mut AntPhysics, memory: &mut AntMemory, current_tick: i64) -> bool {
+    // Update position history
+    physics.last_positions.push(physics.position);
+    if physics.last_positions.len() > 10 {
+        physics.last_positions.remove(0);
+    }
+    
+    // Check every 30 ticks
+    if current_tick - memory.last_stuck_check > 30 {
+        memory.last_stuck_check = current_tick;
+        
+        if physics.last_positions.len() >= 5 {
+            let recent_positions = &physics.last_positions[physics.last_positions.len()-5..];
+            let mut total_distance = 0.0;
+            
+            for i in 1..recent_positions.len() {
+                total_distance += recent_positions[i-1].distance(recent_positions[i]);
+            }
+            
+            // If ant moved less than 10 units in 5 position samples, it's stuck
+            if total_distance < 10.0 {
+                memory.stuck_counter += 1;
+                debug!("Ant seems stuck, total distance: {:.2}, stuck_counter: {}", total_distance, memory.stuck_counter);
+                return memory.stuck_counter > 2;
+            } else {
+                memory.stuck_counter = 0;
+            }
+        }
+    }
+    
+    memory.stuck_counter > 2
+}
+
+/// Calculate the desired direction for movement
+fn calculate_desired_direction(
+    physics: &AntPhysics,
+    memory: &AntMemory,
+    state: &AntState,
+    target: &AntTarget,
+    world_bounds: &WorldBounds,
+    is_stuck: bool,
+    entity: Entity,
+) -> Vec2 {
+    // If stuck, use escape behavior
+    if is_stuck {
+        debug!("Ant {:?} is stuck, using escape behavior", entity);
+        return calculate_escape_direction(physics, memory, world_bounds);
+    }
+    
+    match (state, target) {
+        (AntState::Wandering, _) => {
+            calculate_wander_direction(physics, memory)
+        }
+        (AntState::SeekingFood, AntTarget::Food(_)) | 
+        (AntState::CarryingFood, AntTarget::Colony(_)) => {
+            // Will be handled by targeted movement system
+            calculate_wander_direction(physics, memory)
+        }
+        (AntState::Following, AntTarget::Position(pos)) => {
+            (*pos - physics.position).normalize_or_zero()
+        }
+        _ => {
+            calculate_wander_direction(physics, memory)
+        }
+    }
+}
+
+/// Calculate escape direction when stuck
+fn calculate_escape_direction(physics: &AntPhysics, memory: &AntMemory, world_bounds: &WorldBounds) -> Vec2 {
+    let mut escape_direction = Vec2::ZERO;
+    
+    // Avoid recently visited positions
+    for visited_pos in &memory.visited_positions {
+        let to_visited = *visited_pos - physics.position;
+        let distance = to_visited.length();
+        if distance < 30.0 && distance > 0.1 {
+            let avoidance_strength = (30.0 - distance) / 30.0;
+            escape_direction -= to_visited.normalize() * avoidance_strength;
+        }
+    }
+    
+    // Avoid boundaries
+    let boundary_avoidance = calculate_boundary_avoidance(physics.position, world_bounds);
+    escape_direction += boundary_avoidance;
+    
+    // Add some randomness
+    let mut rng = rand::thread_rng();
+    let random_angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
+    let random_direction = Vec2::new(random_angle.cos(), random_angle.sin());
+    escape_direction += random_direction * 0.5;
+    
+    escape_direction.normalize_or_zero()
+}
+
+/// Calculate realistic wandering behavior
+fn calculate_wander_direction(physics: &AntPhysics, _memory: &AntMemory) -> Vec2 {
+    let mut rng = rand::thread_rng();
+    
+    // Update wander angle with small random changes for smooth movement
+    let wander_angle = physics.wander_angle + (rng.gen::<f32>() - 0.5) * physics.wander_change;
+    
+    // Create a circle in front of the ant for wander target
+    let circle_center = physics.position + physics.velocity.normalize_or_zero() * 30.0;
+    let wander_target = circle_center + Vec2::new(wander_angle.cos(), wander_angle.sin()) * 15.0;
+    
+    (wander_target - physics.position).normalize_or_zero()
+}
+
+/// Calculate steering forces including obstacle avoidance
+fn calculate_steering_force(
+    physics: &mut AntPhysics,
+    desired_direction: Vec2,
+    world_bounds: &WorldBounds,
+    delta_time: f32,
+) -> Vec2 {
+    let mut steering_force = Vec2::ZERO;
+    
+    // Desired velocity
+    let desired_velocity = desired_direction * physics.max_speed;
+    
+    // Steering = desired - current
+    let seek_force = desired_velocity - physics.velocity;
+    steering_force += seek_force * 0.5;
+    
+    // Boundary avoidance
+    let boundary_force = calculate_boundary_avoidance(physics.position, world_bounds);
+    steering_force += boundary_force * 2.0;
+    
+    // Update wander angle
+    let mut rng = rand::thread_rng();
+    physics.wander_angle += (rng.gen::<f32>() - 0.5) * physics.wander_change * delta_time;
+    
+    steering_force
+}
+
+/// Calculate force to avoid world boundaries
+fn calculate_boundary_avoidance(position: Vec2, world_bounds: &WorldBounds) -> Vec2 {
+    let mut avoidance_force = Vec2::ZERO;
+    let buffer = 50.0; // Start avoiding when this close to boundary
+    
+    // Left boundary
+    if position.x < buffer {
+        let strength = (buffer - position.x) / buffer;
+        avoidance_force.x += strength * 200.0;
+    }
+    
+    // Right boundary
+    if position.x > world_bounds.width - buffer {
+        let strength = (position.x - (world_bounds.width - buffer)) / buffer;
+        avoidance_force.x -= strength * 200.0;
+    }
+    
+    // Bottom boundary
+    if position.y < buffer {
+        let strength = (buffer - position.y) / buffer;
+        avoidance_force.y += strength * 200.0;
+    }
+    
+    // Top boundary
+    if position.y > world_bounds.height - buffer {
+        let strength = (position.y - (world_bounds.height - buffer)) / buffer;
+        avoidance_force.y -= strength * 200.0;
+    }
+    
+    avoidance_force
+}
+
+/// Update ant physics with smooth acceleration
+fn update_ant_physics(physics: &mut AntPhysics, steering_force: Vec2, delta_time: f32) {
+    // Apply steering force with momentum consideration
+    let acceleration = steering_force * physics.acceleration * delta_time;
+    physics.velocity += acceleration;
+    
+    // Apply momentum for more realistic movement
+    let momentum = physics.momentum;
+    physics.velocity *= momentum;
+    
+    // Clamp velocity to max speed
+    if physics.velocity.length() > physics.max_speed {
+        physics.velocity = physics.velocity.normalize() * physics.max_speed;
+    }
+    
+    // Update position
+    physics.position += physics.velocity * delta_time;
+}
+
+/// Update position history for path tracking
+fn update_position_history(physics: &mut AntPhysics, memory: &mut AntMemory) {
+    // Add current position to path history
+    memory.path_history.push(physics.position);
+    if memory.path_history.len() > 20 {
+        memory.path_history.remove(0);
+    }
+    
+    // Update visited positions (with some spacing to avoid too many points)
+    if memory.visited_positions.is_empty() || 
+       memory.visited_positions.last().unwrap().distance(physics.position) > 15.0 {
+        memory.visited_positions.push(physics.position);
+        if memory.visited_positions.len() > 50 {
+            memory.visited_positions.remove(0);
+        }
+    }
+}
+
+/// Enforce world boundaries by keeping ants inside
+fn enforce_world_boundaries(physics: &mut AntPhysics, world_bounds: &WorldBounds) {
+    // Hard boundary enforcement
+    if physics.position.x < 0.0 {
+        physics.position.x = 0.0;
+        physics.velocity.x = physics.velocity.x.abs(); // Bounce off
+    }
+    if physics.position.x > world_bounds.width {
+        physics.position.x = world_bounds.width;
+        physics.velocity.x = -physics.velocity.x.abs(); // Bounce off
+    }
+    if physics.position.y < 0.0 {
+        physics.position.y = 0.0;
+        physics.velocity.y = physics.velocity.y.abs(); // Bounce off
+    }
+    if physics.position.y > world_bounds.height {
+        physics.position.y = world_bounds.height;
+        physics.velocity.y = -physics.velocity.y.abs(); // Bounce off
+    }
+}
+
+/// Linear interpolation between two angles
+fn lerp_angle(from: f32, to: f32, t: f32) -> f32 {
+    let diff = (to - from + std::f32::consts::PI) % (2.0 * std::f32::consts::PI) - std::f32::consts::PI;
+    from + diff * t
+}
+
 // Separate system to handle targeted movement towards food and colonies
 pub fn ant_targeted_movement_system(
     mut ants: Query<(
         &mut AntPhysics,
+        &mut AntMemory,
         &AntState,
         &AntTarget,
         Entity,
     ), With<Ant>>,
     food_sources: Query<(&FoodSourceProperties, &Transform, Entity), With<FoodSource>>,
     colonies: Query<(&ColonyProperties, &Transform, Entity), With<Colony>>,
+    world_bounds: Res<WorldBounds>,
     time: Res<Time>,
 ) {
-    for (mut physics, state, target, entity) in ants.iter_mut() {
+    for (mut physics, memory, state, target, entity) in ants.iter_mut() {
         let delta_time = time.delta_seconds();
         
-        // Calculate targeted movement
-        let target_velocity = match (state, target) {
+        // Calculate targeted direction with improved pathfinding
+        let target_direction = match (state, target) {
             (AntState::SeekingFood, AntTarget::Food(food_entity)) => {
-                // Move towards food target
+                // Move towards food target with obstacle avoidance
                 if let Ok((_food_props, food_transform, _)) = food_sources.get(*food_entity) {
                     let food_pos = food_transform.translation.truncate();
-                    let direction = (food_pos - physics.position).normalize();
-                    let velocity = direction * physics.max_speed;
-                    trace!("Ant {:?} seeking food at ({:.2}, {:.2}), velocity=({:.2}, {:.2})", 
-                           entity, food_pos.x, food_pos.y, velocity.x, velocity.y);
-                    velocity
+                    let direction = calculate_smart_direction(
+                        physics.position,
+                        food_pos,
+                        &memory,
+                        &world_bounds
+                    );
+                    trace!("Ant {:?} seeking food at ({:.2}, {:.2})", 
+                           entity, food_pos.x, food_pos.y);
+                    Some(direction)
                 } else {
                     trace!("Ant {:?} seeking food but target entity {:?} not found", entity, food_entity);
-                    Vec2::ZERO
+                    None
                 }
             }
             (AntState::CarryingFood, AntTarget::Colony(colony_entity)) => {
-                // Move towards colony
+                // Move towards colony with obstacle avoidance
                 if let Ok((_colony_props, colony_transform, _)) = colonies.get(*colony_entity) {
                     let colony_pos = colony_transform.translation.truncate();
-                    let direction = (colony_pos - physics.position).normalize();
-                    let velocity = direction * physics.max_speed;
-                    trace!("Ant {:?} carrying food to colony at ({:.2}, {:.2}), velocity=({:.2}, {:.2})", 
-                           entity, colony_pos.x, colony_pos.y, velocity.x, velocity.y);
-                    velocity
+                    let direction = calculate_smart_direction(
+                        physics.position,
+                        colony_pos,
+                        &memory,
+                        &world_bounds
+                    );
+                    trace!("Ant {:?} carrying food to colony at ({:.2}, {:.2})", 
+                           entity, colony_pos.x, colony_pos.y);
+                    Some(direction)
                 } else {
                     trace!("Ant {:?} carrying food but colony entity {:?} not found", entity, colony_entity);
-                    Vec2::ZERO
+                    None
                 }
             }
-            _ => Vec2::ZERO,
+            _ => None,
         };
 
-        // Apply targeted movement
-        if target_velocity.length() > 0.1 {
-            let velocity_diff = target_velocity - physics.velocity;
-            if velocity_diff.length() > 0.1 {
-                let acceleration = velocity_diff.normalize() * physics.acceleration * delta_time;
-                physics.velocity += acceleration;
-            }
+        // Apply targeted movement with improved steering
+        if let Some(direction) = target_direction {
+            // Use the desired direction for the main movement system
+            physics.desired_direction = direction;
+            
+            // Apply gentle steering towards target
+            let desired_velocity = direction * physics.max_speed * 0.8; // Slightly slower when targeting
+            let steering_force = (desired_velocity - physics.velocity) * 0.3; // Gentle steering
+            
+            // Apply boundary avoidance
+            let boundary_force = calculate_boundary_avoidance(physics.position, &world_bounds);
+            let total_force = steering_force + boundary_force * 1.5;
+            
+            // Update velocity with smooth acceleration
+            let acceleration = total_force * physics.acceleration * delta_time;
+            physics.velocity += acceleration;
+            
+            // Apply momentum
+            let momentum = physics.momentum;
+            physics.velocity *= momentum;
             
             // Clamp velocity to max speed
             if physics.velocity.length() > physics.max_speed {
                 physics.velocity = physics.velocity.normalize() * physics.max_speed;
             }
-
-            // Update position
-            let velocity = physics.velocity;
-            physics.position += velocity * delta_time;
         }
     }
+}
+
+/// Calculate smart direction towards target avoiding obstacles and visited areas
+fn calculate_smart_direction(
+    current_pos: Vec2,
+    target_pos: Vec2,
+    memory: &AntMemory,
+    world_bounds: &WorldBounds,
+) -> Vec2 {
+    let mut direction = (target_pos - current_pos).normalize_or_zero();
+    
+    // Avoid recently visited areas when pathfinding
+    for visited_pos in &memory.visited_positions {
+        let to_visited = *visited_pos - current_pos;
+        let distance = to_visited.length();
+        
+        // If we're close to a visited position and it's in our path, slightly avoid it
+        if distance < 25.0 && distance > 0.1 {
+            let dot_product = direction.dot(to_visited.normalize());
+            if dot_product > 0.5 { // If visited position is in our general direction
+                let avoidance_strength = ((25.0 - distance) / 25.0) * 0.3;
+                let perpendicular = Vec2::new(-to_visited.y, to_visited.x).normalize();
+                direction += perpendicular * avoidance_strength;
+            }
+        }
+    }
+    
+    // Avoid boundaries in pathfinding
+    let boundary_avoidance = calculate_boundary_avoidance(current_pos, world_bounds) * 0.001;
+    direction += boundary_avoidance;
+    
+    direction.normalize_or_zero()
 }
 
 pub fn ant_health_system(

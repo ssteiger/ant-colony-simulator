@@ -2,7 +2,7 @@ use crate::models::*;
 use rand::prelude::*;
 use bevy::prelude::*;
 use std::collections::HashMap;
-use tracing::{debug, info, warn, error, instrument};
+use tracing::{debug, info, warn, instrument};
 
 // ============================================================================
 // COLONY MANAGEMENT SYSTEMS
@@ -387,6 +387,13 @@ fn spawn_ant(
             acceleration: 100.0,
             rotation: 0.0,
             rotation_speed: 2.0,
+            desired_direction: Vec2::new(1.0, 0.0),
+            momentum: 0.95,
+            last_positions: Vec::new(),
+            turn_smoothness: 3.0,
+            wander_angle: 0.0,
+            wander_change: 0.3,
+            obstacle_avoidance_force: Vec2::ZERO,
         },
         AntHealth {
             health: 100.0,
@@ -409,6 +416,11 @@ fn spawn_ant(
             last_food_source: None,
             last_action_tick: 0,
             pheromone_sensitivity: 1.0,
+            visited_positions: Vec::new(),
+            last_stuck_check: 0,
+            stuck_counter: 0,
+            exploration_radius: 100.0,
+            path_history: Vec::new(),
         },
         AntType {
             name: "Worker".to_string(),

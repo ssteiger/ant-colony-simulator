@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use crate::models::*;
-use tracing::{debug, info, warn, error, instrument};
+use tracing::{debug, info, warn, instrument};
 
 // ============================================================================
 // PHEROMONE MANAGEMENT SYSTEMS
@@ -57,32 +57,31 @@ pub fn pheromone_creation_system(
         &AntPhysics,
         &AntState,
         &AntMemory,
+        &CarriedResources,
+        Entity,
     ), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
     let mut created_count = 0;
 
-    for (physics, state, memory) in ants.iter() {
-        // Only create pheromones if ant is moving
-        if physics.velocity.length() > 0.1 {
-            let pheromone_type = match state {
-                AntState::CarryingFood => PheromoneType::Food,
-                AntState::SeekingFood => PheromoneType::Food,
-                AntState::Exploring => PheromoneType::Exploration,
-                AntState::Patrolling => PheromoneType::Home,
-                _ => continue, // Don't create pheromones for other states
-            };
+    for (physics, state, memory, resources, ant_entity) in ants.iter() {
+        // Only create pheromones if ant is moving and not too frequently
+        if physics.velocity.length() > 0.1 && 
+           simulation_state.current_tick % 5 == 0 && // Create every 5 ticks to avoid spam
+           should_create_pheromone(state, resources, simulation_state.current_tick, memory) {
+            
+            let (pheromone_type, strength, lifespan) = calculate_pheromone_properties(state, resources);
 
-            // Create pheromone trail
+            // Create pheromone trail with improved properties
             let pheromone_entity = commands.spawn((
                 PheromoneTrail,
                 PheromoneProperties {
                     trail_type: pheromone_type.clone(),
-                    strength: 100.0,
-                    max_strength: 100.0,
-                    decay_rate: 1.0,
-                    expires_at: simulation_state.current_tick + 1000,
-                    source_ant: None,
+                    strength,
+                    max_strength: strength,
+                    decay_rate: calculate_decay_rate(&pheromone_type),
+                    expires_at: simulation_state.current_tick + lifespan,
+                    source_ant: Some(ant_entity),
                     target_food: None,
                 },
                 Transform::from_translation(Vec3::new(physics.position.x, physics.position.y, 0.0)),
@@ -90,8 +89,8 @@ pub fn pheromone_creation_system(
 
             created_count += 1;
             debug!(
-                "Created pheromone {:?} at ({:.2}, {:.2}) type: {:?}, state: {:?}",
-                pheromone_entity, physics.position.x, physics.position.y, pheromone_type, state
+                "Created pheromone {:?} at ({:.2}, {:.2}) type: {:?}, strength: {:.2}, lifespan: {}",
+                pheromone_entity, physics.position.x, physics.position.y, pheromone_type, strength, lifespan
             );
         }
     }
@@ -101,63 +100,131 @@ pub fn pheromone_creation_system(
     }
 }
 
+/// Determine if an ant should create a pheromone at this moment
+fn should_create_pheromone(
+    state: &AntState,
+    resources: &CarriedResources,
+    current_tick: i64,
+    memory: &AntMemory,
+) -> bool {
+    match state {
+        AntState::CarryingFood => {
+            // Create strong pheromones when carrying food back to colony
+            !resources.resources.is_empty()
+        }
+        AntState::SeekingFood => {
+            // Create weaker exploration pheromones when seeking food
+            current_tick % 10 == 0 // Less frequent for exploration
+        }
+        AntState::Exploring => {
+            // Create exploration pheromones occasionally
+            current_tick % 15 == 0
+        }
+        AntState::Following => {
+            // Don't create pheromones when following (to avoid loops)
+            false
+        }
+        _ => false,
+    }
+}
+
+/// Calculate pheromone properties based on ant state
+fn calculate_pheromone_properties(
+    state: &AntState,
+    resources: &CarriedResources,
+) -> (PheromoneType, f32, i64) {
+    match state {
+        AntState::CarryingFood => {
+            // Strong food pheromones with longer lifespan
+            let strength = 80.0 + (resources.current_weight * 2.0).min(40.0);
+            (PheromoneType::Food, strength, 1500)
+        }
+        AntState::SeekingFood => {
+            // Weaker exploration pheromones
+            (PheromoneType::Exploration, 30.0, 800)
+        }
+        AntState::Exploring => {
+            // Basic exploration pheromones
+            (PheromoneType::Exploration, 25.0, 600)
+        }
+        _ => {
+            // Default weak pheromone
+            (PheromoneType::Exploration, 20.0, 500)
+        }
+    }
+}
+
+/// Calculate decay rate based on pheromone type
+fn calculate_decay_rate(pheromone_type: &PheromoneType) -> f32 {
+    match pheromone_type {
+        PheromoneType::Food => 0.8,      // Food trails decay slower
+        PheromoneType::Home => 0.6,      // Home trails very persistent
+        PheromoneType::Exploration => 1.2, // Exploration trails decay faster
+        PheromoneType::Danger => 2.0,   // Danger trails decay quickly
+    }
+}
+
 /// System to handle ant pheromone detection and following
 #[instrument(skip(ants, pheromones))]
 pub fn pheromone_detection_system(
     mut ants: Query<(
         &mut AntPhysics,
         &mut AntTarget,
-        &AntMemory,
+        &mut AntMemory,
         &AntState,
+        Entity,
     ), With<Ant>>,
     pheromones: Query<(&PheromoneProperties, &Transform), With<PheromoneTrail>>,
 ) {
     let mut ants_following = 0;
     let pheromone_count = pheromones.iter().count();
 
-    for (mut physics, mut target, memory, state) in ants.iter_mut() {
+    for (mut physics, mut target, mut memory, state, ant_entity) in ants.iter_mut() {
         // Only follow pheromones if seeking food or exploring
-        if !matches!(state, AntState::SeekingFood | AntState::Exploring) {
+        if !matches!(state, AntState::SeekingFood | AntState::Exploring | AntState::Wandering) {
             continue;
         }
 
-        let mut best_pheromone = None;
-        let mut best_score = 0.0;
-        let mut detected_count = 0;
+        let pheromone_influence = calculate_pheromone_influence(
+            &physics,
+            &memory,
+            state,
+            &pheromones
+        );
 
-        // Find the strongest pheromone within detection range
-        for (pheromone, pheromone_transform) in pheromones.iter() {
-            let pheromone_pos = pheromone_transform.translation.truncate();
-            let distance = physics.position.distance(pheromone_pos);
+        // Apply pheromone influence to movement
+        if let Some(influence) = pheromone_influence {
+            // Set the desired direction based on pheromone gradient
+            physics.desired_direction = influence.direction;
             
-            // Detection range based on ant's pheromone sensitivity
-            let detection_range = 50.0 * memory.pheromone_sensitivity;
-            
-            if distance < detection_range {
-                detected_count += 1;
-                // Calculate pheromone score based on strength and distance
-                let distance_factor = 1.0 - (distance / detection_range);
-                let score = pheromone.strength * distance_factor;
+            // Adjust target based on pheromone strength and type
+            if influence.strength > 30.0 {
+                // Strong pheromone trail - follow it closely
+                let follow_target = physics.position + influence.direction * 40.0;
+                *target = AntTarget::Position(follow_target);
+                ants_following += 1;
                 
                 debug!(
-                    "Ant at ({:.2}, {:.2}) detected pheromone {:?} at distance {:.2}, score: {:.2}",
-                    physics.position.x, physics.position.y, pheromone.trail_type, distance, score
+                    "Ant {:?} following strong pheromone trail (strength: {:.2}) towards ({:.2}, {:.2})",
+                    ant_entity, influence.strength, follow_target.x, follow_target.y
                 );
-                
-                if score > best_score {
-                    best_score = score;
-                    best_pheromone = Some(pheromone_pos);
+            } else if influence.strength > 10.0 {
+                // Moderate pheromone - influence movement direction but don't override specific targets
+                if matches!(*target, AntTarget::None) {
+                    let gentle_target = physics.position + influence.direction * 20.0;
+                    *target = AntTarget::Position(gentle_target);
+                    ants_following += 1;
+                    
+                    debug!(
+                        "Ant {:?} gently influenced by pheromone (strength: {:.2})",
+                        ant_entity, influence.strength
+                    );
                 }
             }
-        }
-
-        // Follow the best pheromone if found
-        if let Some(pheromone_pos) = best_pheromone {
-            *target = AntTarget::Position(pheromone_pos);
-            ants_following += 1;
-            debug!(
-                "Ant at ({:.2}, {:.2}) following pheromone to ({:.2}, {:.2}), detected {} pheromones",
-                physics.position.x, physics.position.y, pheromone_pos.x, pheromone_pos.y, detected_count
+            
+            // Update memory about pheromone following
+            memory.last_action_tick = memory.last_action_tick.max(
+                memory.last_action_tick.saturating_add(1)
             );
         }
     }
@@ -168,6 +235,85 @@ pub fn pheromone_detection_system(
             ants_following, pheromone_count
         );
     }
+}
+
+/// Calculate the combined influence of nearby pheromones
+fn calculate_pheromone_influence(
+    physics: &AntPhysics,
+    memory: &AntMemory,
+    state: &AntState,
+    pheromones: &Query<(&PheromoneProperties, &Transform), With<PheromoneTrail>>,
+) -> Option<PheromoneInfluence> {
+    let mut total_direction = Vec2::ZERO;
+    let mut total_strength = 0.0;
+    let mut pheromone_count = 0;
+
+    // Detection range based on ant's pheromone sensitivity
+    let base_detection_range = 60.0 * memory.pheromone_sensitivity;
+
+    for (pheromone, pheromone_transform) in pheromones.iter() {
+        let pheromone_pos = pheromone_transform.translation.truncate();
+        let distance = physics.position.distance(pheromone_pos);
+        
+        // Adjust detection range based on pheromone type and ant state
+        let detection_range = match (state, &pheromone.trail_type) {
+            (AntState::SeekingFood, PheromoneType::Food) => base_detection_range * 1.5,
+            (AntState::CarryingFood, PheromoneType::Home) => base_detection_range * 1.3,
+            (AntState::Exploring, PheromoneType::Exploration) => base_detection_range * 1.2,
+            _ => base_detection_range,
+        };
+        
+        if distance < detection_range && distance > 0.1 {
+            // Calculate influence based on distance and strength
+            let distance_factor = 1.0 - (distance / detection_range);
+            let influence_strength = pheromone.strength * distance_factor;
+            
+            // Create gradient towards pheromone
+            let direction_to_pheromone = (pheromone_pos - physics.position).normalize_or_zero();
+            
+            // Weight by pheromone type preference
+            let type_weight = match (state, &pheromone.trail_type) {
+                (AntState::SeekingFood, PheromoneType::Food) => 2.0,
+                (AntState::CarryingFood, PheromoneType::Home) => 2.0,
+                (AntState::Exploring, PheromoneType::Exploration) => 1.5,
+                (_, PheromoneType::Danger) => -1.0, // Avoid danger pheromones
+                _ => 1.0,
+            };
+            
+            let weighted_strength = influence_strength * type_weight;
+            
+            if weighted_strength > 0.0 {
+                total_direction += direction_to_pheromone * weighted_strength;
+                total_strength += weighted_strength;
+                pheromone_count += 1;
+                
+                debug!(
+                    "Pheromone at ({:.2}, {:.2}) influencing ant: type={:?}, strength={:.2}, distance={:.2}, weight={:.2}",
+                    pheromone_pos.x, pheromone_pos.y, pheromone.trail_type, influence_strength, distance, type_weight
+                );
+            }
+        }
+    }
+
+    if pheromone_count > 0 && total_strength > 5.0 {
+        // Average the direction weighted by strength
+        let average_direction = (total_direction / total_strength).normalize_or_zero();
+        
+        Some(PheromoneInfluence {
+            direction: average_direction,
+            strength: total_strength,
+            pheromone_count,
+        })
+    } else {
+        None
+    }
+}
+
+/// Represents the combined influence of pheromones on an ant
+struct PheromoneInfluence {
+    direction: Vec2,
+    strength: f32,
+    pheromone_count: i32,
 }
 
 /// System to merge nearby pheromone trails

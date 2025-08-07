@@ -36,6 +36,13 @@ pub struct AntPhysics {
     pub acceleration: f32,
     pub rotation: f32,
     pub rotation_speed: f32,
+    pub desired_direction: Vec2,
+    pub momentum: f32,
+    pub last_positions: Vec<Vec2>,
+    pub turn_smoothness: f32,
+    pub wander_angle: f32,
+    pub wander_change: f32,
+    pub obstacle_avoidance_force: Vec2,
 }
 
 /// Health and energy system for ants
@@ -86,6 +93,11 @@ pub struct AntMemory {
     pub last_food_source: Option<Entity>,
     pub last_action_tick: i64,
     pub pheromone_sensitivity: f32,
+    pub visited_positions: Vec<Vec2>,
+    pub last_stuck_check: i64,
+    pub stuck_counter: i32,
+    pub exploration_radius: f32,
+    pub path_history: Vec<Vec2>,
 }
 
 /// Ant type and role
