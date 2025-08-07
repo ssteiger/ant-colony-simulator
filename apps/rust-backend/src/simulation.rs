@@ -40,7 +40,7 @@ impl AntColonySimulator {
         app.add_plugins(DefaultPlugins);
         
         // Set custom clear color to match background
-        app.insert_resource(ClearColor(Color::rgb(0.2, 0.4, 0.1)));
+        app.insert_resource(ClearColor(Color::WHITE));
 
         // Add Big Brain plugin
         app.add_plugins(BigBrainPlugin::new(Update));
@@ -106,7 +106,7 @@ impl AntColonySimulator {
         app.add_plugins(DefaultPlugins);
         
         // Set custom clear color to match background
-        app.insert_resource(ClearColor(Color::rgb(0.2, 0.4, 0.1)));
+        app.insert_resource(ClearColor(Color::WHITE));
 
         // Add Big Brain plugin
         app.add_plugins(BigBrainPlugin::new(Update));
@@ -451,6 +451,7 @@ fn update_simulation_stats(
     ants: Query<(&AntPhysics, &AntHealth, &AntState), With<Ant>>,
     colonies: Query<(&ColonyProperties, &ColonyResources), With<Colony>>,
     food_sources: Query<(&FoodSourceProperties, &Transform), With<FoodSource>>,
+    pheromones: Query<&PheromoneProperties, With<PheromoneTrail>>,
 ) {
     // Count total ants
     stats.total_ants = ants.iter().count() as i32;
@@ -467,8 +468,8 @@ fn update_simulation_stats(
     }
     stats.total_food_collected = total_food;
     
-    // Count pheromone trails (this would need to be implemented when pheromones are added)
-    stats.pheromone_trail_count = 0; // Placeholder
+    // Count active pheromone trails
+    stats.pheromone_trail_count = pheromones.iter().count() as i32;
 }
 
 // ============================================================================

@@ -3,6 +3,7 @@ use crate::models::*;
 use crate::utils::{WORLD_WIDTH, WORLD_HEIGHT, world_center};
 use bevy::asset::AssetServer;
 use bevy::ecs::system::Resource;
+use bevy::input::mouse::{MouseWheel, MouseMotion};
 
 /// Marker component for the main game camera
 #[derive(Component)]
@@ -45,6 +46,10 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_translation(Vec3::new(center_x, center_y, 1000.0)),
             camera: Camera {
                 order: 0, // Main camera renders first
+                ..default()
+            },
+            projection: OrthographicProjection {
+                scale: 1.0,
                 ..default()
             },
             ..default()
@@ -119,18 +124,24 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     // Load ant.png texture and insert as resource
     let ant_texture: Handle<Image> = asset_server.load("ant.png");
-    println!("Loading ant texture: ant.png");
-    println!("Ant texture handle: {:?}", ant_texture);
+    info!("Loading ant texture: ant.png");
+    info!("Ant texture handle: {:?}", ant_texture);
     commands.insert_resource(AntTexture(ant_texture));
+    
+    // Force asset server to start loading the texture immediately
+    asset_server.load::<Image, _>("ant.png");
 }
 
-/// Camera system for following and zooming
+/// Camera system for following, zooming, and panning
 fn camera_system(
     mut params: ParamSet<(
-        Query<&mut Transform, (With<Camera>, With<MainCamera>)>,
+        Query<(&mut Transform, &mut OrthographicProjection), (With<Camera>, With<MainCamera>)>,
         Query<&Transform, With<Colony>>,
     )>,
     keyboard_input: Res<Input<KeyCode>>,
+    mouse_input: Res<Input<MouseButton>>,
+    mut mouse_wheel: EventReader<MouseWheel>,
+    mut mouse_motion: EventReader<MouseMotion>,
     time: Res<Time>,
 ) {
     // Get colony position first
@@ -143,17 +154,35 @@ fn camera_system(
     });
     
     // Then update camera
-    if let Ok(mut camera_transform) = params.p0().get_single_mut() {
-        // Auto-center camera on the first colony found
-        if let Some(target_position) = colony_position {
-            // Smooth camera movement towards colony center
-            let lerp_factor = 0.1; // Adjust for smoother/faster movement
-            camera_transform.translation = camera_transform.translation.lerp(target_position, lerp_factor);
+    if let Ok((mut camera_transform, mut projection)) = params.p0().get_single_mut() {
+        // Handle mouse wheel zooming
+        for wheel_event in mouse_wheel.iter() {
+            let zoom_factor = if wheel_event.y > 0.0 { 0.9 } else { 1.1 };
+            projection.scale = (projection.scale * zoom_factor).clamp(0.1, 10.0);
+        }
+        
+        // Handle mouse panning (when left mouse button is held and zoomed in)
+        if mouse_input.pressed(MouseButton::Left) && projection.scale < 1.0 {
+            for motion_event in mouse_motion.iter() {
+                // Pan speed should be relative to zoom level
+                let pan_speed = projection.scale * 2.0;
+                camera_transform.translation.x -= motion_event.delta.x * pan_speed;
+                camera_transform.translation.y += motion_event.delta.y * pan_speed; // Y is inverted in screen space
+            }
+        }
+        
+        // Auto-center camera on the first colony found (only when not panning manually)
+        if !mouse_input.pressed(MouseButton::Left) {
+            if let Some(target_position) = colony_position {
+                // Smooth camera movement towards colony center
+                let lerp_factor = 0.02; // Slower lerp when we have manual controls
+                camera_transform.translation = camera_transform.translation.lerp(target_position, lerp_factor);
+            }
         }
         
         // Manual camera movement with WASD keys
         let mut movement = Vec3::ZERO;
-        let speed = 200.0 * time.delta_seconds();
+        let speed = 200.0 * time.delta_seconds() * projection.scale; // Speed relative to zoom
 
         if keyboard_input.pressed(KeyCode::W) {
             movement.y += speed;
@@ -180,11 +209,12 @@ fn ui_system(
     for mut text in text_query.iter_mut() {
         if text.sections.len() > 1 {
             text.sections[1].value = format!(
-                "Tick: {} | Ants: {} | Colonies: {} | Food: {:.1}",
+                "Tick: {} | Ants: {} | Colonies: {} | Food: {:.1} | Pheromones: {}",
                 simulation_stats.current_tick,
                 simulation_stats.total_ants,
                 simulation_stats.active_colonies,
-                simulation_stats.total_food_collected
+                simulation_stats.total_food_collected,
+                simulation_stats.pheromone_trail_count
             );
         }
     }
@@ -198,46 +228,50 @@ fn update_ant_rendering(
     asset_server: Res<AssetServer>,
 ) {
     for (entity, physics, ant_type, _state) in ants.iter() {
-        // Use a more robust approach to check if entity exists and add sprite bundle
-        let is_texture_loaded = asset_server.get_load_state(ant_texture.0.clone()) == bevy::asset::LoadState::Loaded;
+        // Check if ant texture is loaded
+        let load_state = asset_server.get_load_state(ant_texture.0.clone());
         
-        if is_texture_loaded {
-            commands.entity(entity).insert(SpriteBundle {
-                texture: ant_texture.0.clone(),
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(32.0, 32.0)), // Smaller size for better visibility
+        match load_state {
+            bevy::asset::LoadState::Loaded => {
+                // Texture is loaded - use ant.png for all ants
+                // Apply different tints based on ant role while keeping the texture
+                let tint_color = match ant_type.role.as_str() {
+                    "worker" => Color::rgb(1.0, 0.9, 0.7),   // Slight warm tint
+                    "soldier" => Color::rgb(1.0, 0.8, 0.8), // Slight red tint
+                    "scout" => Color::rgb(0.8, 0.9, 1.0),   // Slight blue tint
+                    "queen" => Color::rgb(1.0, 0.8, 1.0),   // Slight purple tint
+                    _ => Color::WHITE,                       // Default white (no tint)
+                };
+                
+                commands.entity(entity).insert(SpriteBundle {
+                    texture: ant_texture.0.clone(),
+                    sprite: Sprite {
+                        color: tint_color, // Apply role-based tint to the texture
+                        custom_size: Some(Vec2::new(16.0, 16.0)), // Made ants half the original size
+                        ..default()
+                    },
+                    transform: Transform::from_translation(Vec3::new(
+                        physics.position.x,
+                        physics.position.y,
+                        50.0, // Higher Z to ensure it's above background
+                    )).with_rotation(Quat::from_rotation_z(physics.rotation)),
                     ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(
-                    physics.position.x,
-                    physics.position.y,
-                    50.0, // Higher Z to ensure it's above background
-                )).with_rotation(Quat::from_rotation_z(physics.rotation)),
-                ..default()
-            });
-        } else {
-            // Fallback: render as colored rectangle based on ant role
-            let color = match ant_type.role.as_str() {
-                "worker" => Color::rgb(0.8, 0.6, 0.2), // Brown
-                "soldier" => Color::rgb(0.6, 0.2, 0.2), // Red
-                "scout" => Color::rgb(0.2, 0.6, 0.8),   // Blue
-                "queen" => Color::rgb(0.8, 0.2, 0.8),   // Purple
-                _ => Color::rgb(0.5, 0.5, 0.5),         // Gray default
-            };
-            
-            commands.entity(entity).insert(SpriteBundle {
-                sprite: Sprite {
-                    color,
-                    custom_size: Some(Vec2::new(12.0, 12.0)),
-                    ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(
-                    physics.position.x,
-                    physics.position.y,
-                    50.0,
-                )).with_rotation(Quat::from_rotation_z(physics.rotation)),
-                ..default()
-            });
+                });
+            }
+            bevy::asset::LoadState::Loading => {
+                // Texture is still loading - don't render anything yet, wait for next frame
+                debug!("Ant texture still loading, waiting...");
+            }
+            bevy::asset::LoadState::Failed => {
+                // Texture failed to load - try to reload it
+                warn!("Ant texture failed to load, attempting to reload ant.png");
+                let new_texture: Handle<Image> = asset_server.load("ant.png");
+                commands.insert_resource(AntTexture(new_texture));
+            }
+            _ => {
+                // Other states (NotLoaded, etc.) - texture might not be available yet
+                debug!("Ant texture not available, state: {:?}", load_state);
+            }
         }
     }
 }
@@ -248,16 +282,42 @@ fn update_colony_rendering(
     colonies: Query<(Entity, &ColonyProperties), (With<Colony>, Without<Sprite>)>,
 ) {
     for (entity, properties) in colonies.iter() {
+        // Create circular sprite for colony with rounded corners effect
+        let sprite = Sprite {
+            color: Color::hsl(properties.color_hue, 0.9, 0.5),
+            custom_size: Some(Vec2::new(properties.radius * 2.0, properties.radius * 2.0)),
+            ..default()
+        };
+        
+        // Use multiple smaller sprites to create a circular appearance
+        let main_size = properties.radius * 2.0;
+        let overlay_size = properties.radius * 1.8;
+        
         commands.entity(entity).insert(SpriteBundle {
             sprite: Sprite {
                 color: Color::hsl(properties.color_hue, 0.9, 0.5),
-                custom_size: Some(Vec2::new(properties.radius * 2.0, properties.radius * 2.0)),
+                custom_size: Some(Vec2::new(main_size, main_size)),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(
                 properties.center.x,
                 properties.center.y,
                 5.0,
+            )),
+            ..default()
+        });
+        
+        // Add a slightly smaller, more opaque overlay to create circular effect
+        commands.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::hsl(properties.color_hue, 0.9, 0.6).with_a(0.8),
+                custom_size: Some(Vec2::new(overlay_size, overlay_size)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(
+                properties.center.x,
+                properties.center.y,
+                5.1,
             )),
             ..default()
         });
@@ -281,16 +341,51 @@ fn update_food_source_rendering(
             _ => Color::rgb(0.6, 0.4, 0.2),         // Brown
         };
 
+        // Create circular-looking sprites with layered effect
+        let main_size = size;
+        let overlay_size = size * 0.8;
+        let center_size = size * 0.6;
+        
         commands.entity(entity).insert(SpriteBundle {
             sprite: Sprite {
                 color,
-                custom_size: Some(Vec2::new(size, size)),
+                custom_size: Some(Vec2::new(main_size, main_size)),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(
                 transform.translation.x,
                 transform.translation.y,
                 5.0,
+            )),
+            ..default()
+        });
+        
+        // Add lighter overlay for circular effect
+        commands.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: color.with_a(0.7),
+                custom_size: Some(Vec2::new(overlay_size, overlay_size)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(
+                transform.translation.x,
+                transform.translation.y,
+                5.1,
+            )),
+            ..default()
+        });
+        
+        // Add bright center highlight
+        commands.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::WHITE.with_a(0.3),
+                custom_size: Some(Vec2::new(center_size, center_size)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(
+                transform.translation.x,
+                transform.translation.y,
+                5.2,
             )),
             ..default()
         });
@@ -303,16 +398,30 @@ fn update_pheromone_rendering(
     pheromones: Query<(Entity, &PheromoneProperties, &Transform), (With<PheromoneTrail>, Without<Sprite>)>,
 ) {
     for (entity, properties, transform) in pheromones.iter() {
-        // Choose color based on pheromone type
-        let color = match properties.trail_type {
-            PheromoneType::Food => Color::rgba(0.2, 0.8, 0.2, 0.3),     // Green
-            PheromoneType::Danger => Color::rgba(0.8, 0.2, 0.2, 0.3),   // Red
-            PheromoneType::Home => Color::rgba(0.2, 0.2, 0.8, 0.3),     // Blue
-            PheromoneType::Exploration => Color::rgba(0.8, 0.8, 0.2, 0.3), // Yellow
+        // Calculate intensity based on strength (0.0 to 1.0)
+        let intensity = (properties.strength / properties.max_strength).clamp(0.0, 1.0);
+        
+        // Choose color based on pheromone type with improved visibility
+        let base_color = match properties.trail_type {
+            PheromoneType::Food => Color::rgb(0.2, 0.9, 0.2),     // Bright Green
+            PheromoneType::Danger => Color::rgb(0.9, 0.1, 0.1),   // Bright Red
+            PheromoneType::Home => Color::rgb(0.1, 0.4, 0.9),     // Bright Blue
+            PheromoneType::Exploration => Color::rgb(0.9, 0.9, 0.1), // Bright Yellow
         };
+        
+        // Apply alpha based on intensity for fading effect
+        let alpha = (intensity * 0.8 + 0.2).min(1.0); // Alpha from 0.2 to 1.0
+        let color = Color::rgba(base_color.r(), base_color.g(), base_color.b(), alpha);
 
-        // Size based on strength
-        let size = (properties.strength / properties.max_strength * 8.0).max(1.0);
+        // Size based on strength and type - make pheromones more visible
+        let base_size = match properties.trail_type {
+            PheromoneType::Food => 6.0,        // Food trails are larger
+            PheromoneType::Home => 5.0,        // Home trails medium
+            PheromoneType::Exploration => 3.0, // Exploration trails smaller
+            PheromoneType::Danger => 8.0,      // Danger trails largest for visibility
+        };
+        
+        let size = (base_size * intensity).max(1.5); // Minimum size for visibility
 
         commands.entity(entity).insert(SpriteBundle {
             sprite: Sprite {
@@ -320,7 +429,11 @@ fn update_pheromone_rendering(
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
-            transform: transform.clone(),
+            transform: Transform::from_translation(Vec3::new(
+                transform.translation.x,
+                transform.translation.y,
+                10.0, // Place pheromones above background but below ants
+            )),
             ..default()
         });
     }
@@ -337,4 +450,6 @@ fn cleanup_territory_indicators(
     for entity in territory_indicators.iter() {
         debug!("Found orphaned sprite entity {:?}, will be cleaned up by Bevy", entity);
     }
-} 
+}
+
+ 

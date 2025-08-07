@@ -48,13 +48,26 @@ pub fn food_spawning_system(
     world_bounds: Res<WorldBounds>,
 ) {
     debug!("running food_spawning_system");
-    // Spawn new food sources periodically
-    if simulation_state.current_tick % 5000 == 0 {
+    // Spawn new food sources more frequently (every 1000 ticks instead of 5000)
+    if simulation_state.current_tick % 1000 == 0 {
         let current_food_count = food_sources.iter().count();
-        let max_food_sources = 50; // Maximum number of food sources
+        let max_food_sources = 75; // Increased maximum number of food sources
         
         if current_food_count < max_food_sources {
             spawn_random_food_source(&mut commands, &world_bounds);
+        }
+    }
+    
+    // Also spawn a small chance of bonus food every tick for more dynamic spawning
+    if simulation_state.current_tick % 100 == 0 {
+        let mut rng = rand::thread_rng();
+        if rng.gen::<f32>() < 0.1 { // 10% chance every 100 ticks
+            let current_food_count = food_sources.iter().count();
+            let max_food_sources = 75;
+            
+            if current_food_count < max_food_sources {
+                spawn_random_food_source(&mut commands, &world_bounds);
+            }
         }
     }
     debug!("food_spawning_system returning");

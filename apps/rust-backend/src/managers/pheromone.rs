@@ -65,14 +65,13 @@ pub fn pheromone_creation_system(
     let mut created_count = 0;
 
     for (physics, state, memory, resources, ant_entity) in ants.iter() {
-        // Only create pheromones if ant is moving and not too frequently
-        if physics.velocity.length() > 0.1 && 
-           simulation_state.current_tick % 5 == 0 && // Create every 5 ticks to avoid spam
+        // Create pheromones continuously when ant is moving (precise movement tracking)
+        if physics.velocity.length() > 0.05 && // Lower threshold for more sensitive detection
            should_create_pheromone(state, resources, simulation_state.current_tick, memory) {
             
             let (pheromone_type, strength, lifespan) = calculate_pheromone_properties(state, resources);
 
-            // Create pheromone trail with improved properties
+            // Create pheromone trail at current position for precise tracking
             let pheromone_entity = commands.spawn((
                 PheromoneTrail,
                 PheromoneProperties {
@@ -88,9 +87,45 @@ pub fn pheromone_creation_system(
             )).id();
 
             created_count += 1;
+            
+            // Also create pheromones along recent path for continuous trails
+            // Use last few positions to fill gaps between current and previous locations
+            if physics.last_positions.len() > 0 {
+                // Get the most recent position from history
+                let last_pos = physics.last_positions[physics.last_positions.len() - 1];
+                let current_pos = physics.position;
+                
+                // Calculate distance moved
+                let distance = (current_pos - last_pos).length();
+                
+                // If ant moved more than 3 pixels, create intermediate pheromones for continuity
+                if distance > 3.0 {
+                    let steps = (distance / 2.0).ceil() as i32; // Create pheromone every ~2 pixels
+                    for i in 1..steps {
+                        let t = i as f32 / steps as f32;
+                        let interpolated_pos = last_pos.lerp(current_pos, t);
+                        
+                        commands.spawn((
+                            PheromoneTrail,
+                            PheromoneProperties {
+                                trail_type: pheromone_type.clone(),
+                                strength: strength * 0.8, // Slightly weaker for interpolated positions
+                                max_strength: strength,
+                                decay_rate: calculate_decay_rate(&pheromone_type),
+                                expires_at: simulation_state.current_tick + lifespan,
+                                source_ant: Some(ant_entity),
+                                target_food: None,
+                            },
+                            Transform::from_translation(Vec3::new(interpolated_pos.x, interpolated_pos.y, 0.0)),
+                        ));
+                        created_count += 1;
+                    }
+                }
+            }
+
             debug!(
-                "Created pheromone {:?} at ({:.2}, {:.2}) type: {:?}, strength: {:.2}, lifespan: {}",
-                pheromone_entity, physics.position.x, physics.position.y, pheromone_type, strength, lifespan
+                "Created continuous pheromone trail {:?} at ({:.2}, {:.2}) type: {:?}, strength: {:.2}, lifespan: {}, total: {}",
+                pheromone_entity, physics.position.x, physics.position.y, pheromone_type, strength, lifespan, created_count
             );
         }
     }
@@ -135,32 +170,36 @@ fn calculate_pheromone_properties(
 ) -> (PheromoneType, f32, i64) {
     match state {
         AntState::CarryingFood => {
-            // Strong food pheromones with longer lifespan
-            let strength = 80.0 + (resources.current_weight * 2.0).min(40.0);
-            (PheromoneType::Food, strength, 1500)
+            // Strong food pheromones with 10x longer lifespan for precise tracking
+            let strength = 90.0 + (resources.current_weight * 2.0).min(50.0);
+            (PheromoneType::Food, strength, 20000) // 10x lifespan: 2000 -> 20000
         }
         AntState::SeekingFood => {
-            // Weaker exploration pheromones
-            (PheromoneType::Exploration, 30.0, 800)
+            // Weaker exploration pheromones with 10x longer visibility
+            (PheromoneType::Exploration, 40.0, 12000) // 10x lifespan: 1200 -> 12000
         }
         AntState::Exploring => {
-            // Basic exploration pheromones
-            (PheromoneType::Exploration, 25.0, 600)
+            // Basic exploration pheromones with 10x longer visibility
+            (PheromoneType::Exploration, 35.0, 10000) // 10x lifespan: 1000 -> 10000
+        }
+        AntState::Following => {
+            // Home pheromones for ants following trails back to colony with 10x lifespan
+            (PheromoneType::Home, 50.0, 15000) // 10x lifespan: 1500 -> 15000
         }
         _ => {
-            // Default weak pheromone
-            (PheromoneType::Exploration, 20.0, 500)
+            // Default weak pheromone with 10x longer visibility
+            (PheromoneType::Exploration, 30.0, 8000) // 10x lifespan: 800 -> 8000
         }
     }
 }
 
-/// Calculate decay rate based on pheromone type
+/// Calculate decay rate based on pheromone type - adjusted for 10x longer lifespans
 fn calculate_decay_rate(pheromone_type: &PheromoneType) -> f32 {
     match pheromone_type {
-        PheromoneType::Food => 0.8,      // Food trails decay slower
-        PheromoneType::Home => 0.6,      // Home trails very persistent
-        PheromoneType::Exploration => 1.2, // Exploration trails decay faster
-        PheromoneType::Danger => 2.0,   // Danger trails decay quickly
+        PheromoneType::Food => 0.04,     // 10x slower decay for persistent food trails
+        PheromoneType::Home => 0.03,     // 10x slower decay for very persistent home trails  
+        PheromoneType::Exploration => 0.06, // 10x slower decay for exploration trails
+        PheromoneType::Danger => 0.15,  // 10x slower decay but still relatively fast
     }
 }
 
