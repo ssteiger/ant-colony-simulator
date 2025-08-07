@@ -24,7 +24,7 @@ pub fn pheromone_decay_system(
         
         if pheromone.strength != old_strength {
             decayed_count += 1;
-            debug!(
+            info!(
                 "Pheromone {:?} decayed: {:.2} -> {:.2} (type: {:?})",
                 entity, old_strength, pheromone.strength, pheromone.trail_type
             );
@@ -34,7 +34,7 @@ pub fn pheromone_decay_system(
         if pheromone.strength <= 0.0 || simulation_state.current_tick > pheromone.expires_at {
             commands.entity(entity).despawn();
             removed_count += 1;
-            debug!(
+            info!(
                 "Removed pheromone {:?} (strength: {:.2}, expires_at: {}, current_tick: {})",
                 entity, pheromone.strength, pheromone.expires_at, simulation_state.current_tick
             );
@@ -42,7 +42,7 @@ pub fn pheromone_decay_system(
     }
 
     if decayed_count > 0 || removed_count > 0 {
-        debug!(
+        info!(
             "Pheromone decay: {} decayed, {} removed, tick: {}",
             decayed_count, removed_count, simulation_state.current_tick
         );
@@ -123,7 +123,7 @@ pub fn pheromone_creation_system(
                 }
             }
 
-            debug!(
+            info!(
                 "Created continuous pheromone trail {:?} at ({:.2}, {:.2}) type: {:?}, strength: {:.2}, lifespan: {}, total: {}",
                 pheromone_entity, physics.position.x, physics.position.y, pheromone_type, strength, lifespan, created_count
             );
@@ -131,7 +131,7 @@ pub fn pheromone_creation_system(
     }
 
     if created_count > 0 {
-        debug!("Created {} pheromone trails, tick: {}", created_count, simulation_state.current_tick);
+        info!("Created {} pheromone trails, tick: {}", created_count, simulation_state.current_tick);
     }
 }
 
@@ -243,7 +243,7 @@ pub fn pheromone_detection_system(
                 *target = AntTarget::Position(follow_target);
                 ants_following += 1;
                 
-                debug!(
+                info!(
                     "Ant {:?} following strong pheromone trail (strength: {:.2}) towards ({:.2}, {:.2})",
                     ant_entity, influence.strength, follow_target.x, follow_target.y
                 );
@@ -254,7 +254,7 @@ pub fn pheromone_detection_system(
                     *target = AntTarget::Position(gentle_target);
                     ants_following += 1;
                     
-                    debug!(
+                    info!(
                         "Ant {:?} gently influenced by pheromone (strength: {:.2})",
                         ant_entity, influence.strength
                     );
@@ -269,7 +269,7 @@ pub fn pheromone_detection_system(
     }
 
     if ants_following > 0 {
-        debug!(
+        info!(
             "Pheromone detection: {} ants following pheromones out of {} total pheromones",
             ants_following, pheromone_count
         );
@@ -326,7 +326,7 @@ fn calculate_pheromone_influence(
                 total_strength += weighted_strength;
                 pheromone_count += 1;
                 
-                debug!(
+                info!(
                     "Pheromone at ({:.2}, {:.2}) influencing ant: type={:?}, strength={:.2}, distance={:.2}, weight={:.2}",
                     pheromone_pos.x, pheromone_pos.y, pheromone.trail_type, influence_strength, distance, type_weight
                 );
@@ -382,7 +382,7 @@ pub fn pheromone_merging_system(
             // Merge pheromones if they're close and of the same type
             if distance < 5.0 && props1.trail_type == props2.trail_type {
                 merge_count += 1;
-                debug!(
+                info!(
                     "Merging pheromones: {:?} ({:.2}, {:.2}) and {:?} ({:.2}, {:.2}) at distance {:.2}",
                     entity1, pos1.x, pos1.y, entity2, pos2.x, pos2.y, distance
                 );
@@ -390,11 +390,11 @@ pub fn pheromone_merging_system(
                 // Merge into the stronger pheromone
                 if props1.strength >= props2.strength {
                     merged_entities.push(*entity2);
-                    debug!("Keeping {:?} (strength: {:.2}), removing {:?} (strength: {:.2})", 
+                    info!("Keeping {:?} (strength: {:.2}), removing {:?} (strength: {:.2})", 
                            entity1, props1.strength, entity2, props2.strength);
                 } else {
                     merged_entities.push(*entity1);
-                    debug!("Keeping {:?} (strength: {:.2}), removing {:?} (strength: {:.2})", 
+                    info!("Keeping {:?} (strength: {:.2}), removing {:?} (strength: {:.2})", 
                            entity2, props2.strength, entity1, props1.strength);
                 }
             }
@@ -408,7 +408,7 @@ pub fn pheromone_merging_system(
     }
 
     if merge_count > 0 {
-        debug!("Merged {} pheromone pairs, removed {} entities", merge_count, removed_count);
+        info!("Merged {} pheromone pairs, removed {} entities", merge_count, removed_count);
     }
 }
 
@@ -482,7 +482,7 @@ pub fn danger_avoidance_system(
                     
                     danger_direction += direction * strength;
                     
-                    debug!(
+                    info!(
                         "Ant at ({:.2}, {:.2}) avoiding danger pheromone at ({:.2}, {:.2}), distance: {:.2}, strength: {:.2}",
                         physics.position.x, physics.position.y, pheromone_pos.x, pheromone_pos.y, distance, strength
                     );
@@ -499,7 +499,7 @@ pub fn danger_avoidance_system(
             *target = AntTarget::Position(avoidance_target);
             ants_avoiding += 1;
             
-            debug!(
+            info!(
                 "Ant avoiding {} danger pheromones, moving from ({:.2}, {:.2}) to ({:.2}, {:.2})",
                 danger_count, physics.position.x, physics.position.y, avoidance_target.x, avoidance_target.y
             );
@@ -507,7 +507,7 @@ pub fn danger_avoidance_system(
     }
 
     if ants_avoiding > 0 {
-        debug!("{} ants avoiding danger pheromones", ants_avoiding);
+        info!("{} ants avoiding danger pheromones", ants_avoiding);
     }
 }
 
@@ -521,7 +521,7 @@ pub fn pheromone_stats_system(
     stats.pheromone_trail_count = pheromones.iter().count() as i32;
     
     if stats.pheromone_trail_count != old_count {
-        debug!(
+        info!(
             "Pheromone trail count updated: {} -> {}",
             old_count, stats.pheromone_trail_count
         );
@@ -555,7 +555,7 @@ pub fn pheromone_visualization_system(
     
     // Log pheromone type distribution periodically
     if !type_counts.is_empty() {
-        debug!("Pheromone type distribution: {:?}", type_counts);
+        info!("Pheromone type distribution: {:?}", type_counts);
     }
 }
 
@@ -568,7 +568,7 @@ pub fn calculate_pheromone_strength(base_strength: f32, distance: f32, max_dista
     let distance_factor = 1.0 - (distance / max_distance).clamp(0.0, 1.0);
     let strength = base_strength * distance_factor;
     
-    debug!(
+    info!(
         "Calculated pheromone strength: base={:.2}, distance={:.2}, max_distance={:.2}, result={:.2}",
         base_strength, distance, max_distance, strength
     );
@@ -587,7 +587,7 @@ pub fn should_merge_pheromones(
     let distance = pos1.distance(pos2);
     let should_merge = distance < merge_distance && type1 == type2;
     
-    debug!(
+    info!(
         "Merge check: distance={:.2}, merge_distance={:.2}, types: {:?} vs {:?}, should_merge={}",
         distance, merge_distance, type1, type2, should_merge
     );
@@ -611,6 +611,6 @@ impl Plugin for PheromonePlugin {
             pheromone_stats_system,
             pheromone_visualization_system,
         ));
-        debug!("PheromonePlugin systems registered");
+        info!("PheromonePlugin systems registered");
     }
 } 

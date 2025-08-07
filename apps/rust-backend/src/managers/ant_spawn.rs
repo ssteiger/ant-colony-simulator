@@ -105,7 +105,7 @@ pub fn ant_health_system(
         // (Ants work based on pheromones, not energy)
         
         if health.age_ticks % 1000 == 0 {
-            debug!("Ant {:?} age: {} ticks, health: {:.1}", entity, health.age_ticks, health.health);
+            info!("Ant {:?} age: {} ticks, health: {:.1}", entity, health.age_ticks, health.health);
         }
     }
 }

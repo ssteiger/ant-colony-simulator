@@ -21,7 +21,7 @@ pub fn colony_spawning_system(
     ants: Query<&Ant, With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running colony_spawning_system");
+    info!("running colony_spawning_system");
     let mut total_spawned = 0;
     let mut total_ants = 0;
 
@@ -33,7 +33,7 @@ pub fn colony_spawning_system(
         total_ants += ant_count;
 
         if old_population != ant_count {
-            debug!(
+            info!(
                 "Colony population updated: {} -> {} (max: {})",
                 old_population, ant_count, colony_props.max_population
             );
@@ -43,7 +43,7 @@ pub fn colony_spawning_system(
         if colony_props.population < colony_props.max_population {
             let can_spawn = has_sufficient_resources(&resources.resources, &nest.upgrade_cost);
             
-            debug!(
+            info!(
                 "Colony spawning check: population={}, max_population={}, can_spawn={}, tick={}",
                 colony_props.population, colony_props.max_population, can_spawn, simulation_state.current_tick
             );
@@ -80,7 +80,7 @@ pub fn colony_spawning_system(
                     let spawned_ants = spawn_ant_batch_with_ai(&mut commands, &colony_props, transform.translation.truncate(), ants_to_spawn);
                     total_spawned += spawned_ants.len();
                     
-                    debug!(
+                    info!(
                         "Spawned {} ants for colony at ({:.2}, {:.2}), new population: {}",
                         spawned_ants.len(), transform.translation.x, transform.translation.y, colony_props.population + spawned_ants.len() as i32
                     );
@@ -91,14 +91,14 @@ pub fn colony_spawning_system(
                         consume_spawning_resources(&mut resources.resources, &nest.upgrade_cost);
                     }
                     
-                    debug!(
+                    info!(
                         "Consumed spawning resources for {} ants: {:?} -> {:?}",
                         spawned_ants.len(), old_resources, resources.resources
                     );
                 }
             }
         } else {
-            debug!(
+            info!(
                 "Colony at max population: {} >= {}",
                 colony_props.population, colony_props.max_population
             );
@@ -111,7 +111,7 @@ pub fn colony_spawning_system(
             total_spawned, total_ants, simulation_state.current_tick
         );
     }
-    debug!("colony_spawning_system returning");
+    info!("colony_spawning_system returning");
 }
 
 /// System to manage colony resource consumption
@@ -120,7 +120,7 @@ pub fn colony_resource_consumption_system(
     mut colonies: Query<(&mut ColonyResources, &ColonyProperties), With<Colony>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running colony_resource_consumption_system");
+    info!("running colony_resource_consumption_system");
     let mut colonies_consuming = 0;
 
     for (mut resources, colony_props) in colonies.iter_mut() {
@@ -134,7 +134,7 @@ pub fn colony_resource_consumption_system(
                 *amount = (*amount - consumption_rate).max(0.0);
                 
                 if *amount != old_amount {
-                    debug!(
+                    info!(
                         "Colony consumed {}: {:.2} -> {:.2} (rate: {:.2})",
                         resource_type, old_amount, *amount, consumption_rate
                     );
@@ -142,7 +142,7 @@ pub fn colony_resource_consumption_system(
             }
             
             colonies_consuming += 1;
-            debug!(
+            info!(
                 "Colony resource consumption: population={}, rate={:.2}, resources: {:?} -> {:?}",
                 colony_props.population, consumption_rate, old_resources, resources.resources
             );
@@ -150,12 +150,12 @@ pub fn colony_resource_consumption_system(
     }
 
     if colonies_consuming > 0 {
-        debug!(
+        info!(
             "Resource consumption: {} colonies consumed resources, tick: {}",
             colonies_consuming, simulation_state.current_tick
         );
     }
-    debug!("colony_resource_consumption_system returning");
+    info!("colony_resource_consumption_system returning");
 }
 
 /// System to manage colony upgrades
@@ -167,7 +167,7 @@ pub fn colony_upgrade_system(
         &mut ColonyResources,
     ), With<Colony>>,
 ) {
-    debug!("running colony_upgrade_system");
+    info!("running colony_upgrade_system");
     let mut colonies_upgraded = 0;
 
     for (mut nest, mut colony_props, mut resources) in colonies.iter_mut() {
@@ -175,7 +175,7 @@ pub fn colony_upgrade_system(
         if nest.level < nest.max_level {
             let can_upgrade = has_sufficient_resources(&resources.resources, &nest.upgrade_cost);
             
-            debug!(
+            info!(
                 "Colony upgrade check: level={}, max_level={}, can_upgrade={}, cost={:?}",
                 nest.level, nest.max_level, can_upgrade, nest.upgrade_cost
             );
@@ -200,7 +200,7 @@ pub fn colony_upgrade_system(
                 let old_resources = resources.resources.clone();
                 consume_spawning_resources(&mut resources.resources, &nest.upgrade_cost);
                 
-                debug!(
+                info!(
                     "Upgrade resources consumed: {:?} -> {:?}",
                     old_resources, resources.resources
                 );
@@ -209,7 +209,7 @@ pub fn colony_upgrade_system(
                 for (resource_type, cost) in nest.upgrade_cost.iter_mut() {
                     let old_cost = *cost;
                     *cost *= 1.5;
-                    debug!(
+                    info!(
                         "Upgrade cost increased for {}: {:.2} -> {:.2}",
                         resource_type, old_cost, *cost
                     );
@@ -218,7 +218,7 @@ pub fn colony_upgrade_system(
                 colonies_upgraded += 1;
             }
         } else {
-            debug!(
+            info!(
                 "Colony at max level: {} >= {}",
                 nest.level, nest.max_level
             );
@@ -228,7 +228,7 @@ pub fn colony_upgrade_system(
     if colonies_upgraded > 0 {
         info!("{} colonies upgraded", colonies_upgraded);
     }
-    debug!("colony_upgrade_system returning");
+    info!("colony_upgrade_system returning");
 }
 
 /*
@@ -262,7 +262,7 @@ pub fn colony_territory_system(
         })
         .collect();
 
-    debug!(
+    info!(
         "Territory check: {} colonies, {} ants",
         colony_positions.len(), ants.iter().count()
     );
@@ -274,13 +274,13 @@ pub fn colony_territory_system(
             
             if distance < *territory_radius {
                 territory_conflicts += 1;
-                debug!(
+                info!(
                     "Ant at ({:.2}, {:.2}) in territory of colony {:?} (distance: {:.2}, radius: {:.2})",
                     ant_physics.position.x, ant_physics.position.y, colony_entity, distance, territory_radius
                 );
                 
                 if *aggression > 0.5 {
-                    debug!(
+                    info!(
                         "Colony {:?} is aggressive (level: {:.2})",
                         colony_entity, aggression
                     );
@@ -295,7 +295,7 @@ pub fn colony_territory_system(
                             ant_health.health, ant_physics.position.x, ant_physics.position.y
                         );
                     } else {
-                        debug!(
+                        info!(
                             "Ant survived territory conflict: health={:.2}",
                             ant_health.health
                         );
@@ -306,7 +306,7 @@ pub fn colony_territory_system(
     }
 
     if territory_conflicts > 0 || ants_killed > 0 {
-        debug!(
+        info!(
             "Territory conflicts: {} ants in enemy territory, {} killed",
             territory_conflicts, ants_killed
         );
@@ -321,7 +321,7 @@ pub fn colony_stats_system(
     colonies: Query<&ColonyProperties, With<Colony>>,
     ants: Query<&Ant, With<Ant>>,
 ) {
-    debug!("running colony_stats_system");
+    info!("running colony_stats_system");
     let old_active_colonies = stats.active_colonies;
     let old_total_ants = stats.total_ants;
     
@@ -329,12 +329,12 @@ pub fn colony_stats_system(
     stats.total_ants = ants.iter().count() as i32;
     
     if stats.active_colonies != old_active_colonies || stats.total_ants != old_total_ants {
-        debug!(
+        info!(
             "Colony stats updated: colonies {} -> {}, ants {} -> {}",
             old_active_colonies, stats.active_colonies, old_total_ants, stats.total_ants
         );
     }
-    debug!("colony_stats_system returning");
+    info!("colony_stats_system returning");
 }
 
 // ============================================================================
@@ -347,19 +347,19 @@ fn has_sufficient_resources(
     resources: &HashMap<String, f32>,
     required: &HashMap<String, f32>,
 ) -> bool {
-    debug!("running has_sufficient_resources");
+    info!("running has_sufficient_resources");
     for (resource_type, required_amount) in required {
         let available = resources.get(resource_type).unwrap_or(&0.0);
         if available < required_amount {
-            debug!(
+            info!(
                 "Insufficient resources: {} (required: {:.2}, available: {:.2})",
                 resource_type, required_amount, available
             );
             return false;
         }
     }
-    debug!("Sufficient resources available: {:?}", required);
-    debug!("has_sufficient_resources returning true");
+    info!("Sufficient resources available: {:?}", required);
+    info!("has_sufficient_resources returning true");
     true
 }
 
@@ -369,13 +369,13 @@ fn consume_spawning_resources(
     resources: &mut HashMap<String, f32>,
     cost: &HashMap<String, f32>,
 ) {
-    debug!("running consume_spawning_resources");
+    info!("running consume_spawning_resources");
     for (resource_type, cost_amount) in cost {
         if let Some(available) = resources.get_mut(resource_type) {
             let old_amount = *available;
             *available = (*available - cost_amount).max(0.0);
             
-            debug!(
+            info!(
                 "Consumed resource {}: {:.2} -> {:.2} (cost: {:.2})",
                 resource_type, old_amount, *available, cost_amount
             );
@@ -386,7 +386,7 @@ fn consume_spawning_resources(
             );
         }
     }
-    debug!("consume_spawning_resources returning");
+    info!("consume_spawning_resources returning");
 }
 
 /// Spawn multiple ants for a colony in a batch with Big Brain AI
@@ -397,7 +397,7 @@ fn spawn_ant_batch_with_ai(
     colony_position: Vec2,
     count: i32,
 ) -> Vec<Entity> {
-    debug!("running spawn_ant_batch_with_ai for {} ants", count);
+    info!("running spawn_ant_batch_with_ai for {} ants", count);
     let mut spawned_ants = Vec::with_capacity(count as usize);
     let mut rng = rand::thread_rng();
     
@@ -407,7 +407,7 @@ fn spawn_ant_batch_with_ai(
         let distance = rng.gen::<f32>() * colony_props.radius;
         let spawn_position = colony_position + Vec2::new(angle.cos(), angle.sin()) * distance;
 
-        debug!(
+        info!(
             "Batch spawning ant {}/{} with AI: colony_pos=({:.2}, {:.2}), spawn_pos=({:.2}, {:.2}), angle={:.2}, distance={:.2}",
             i + 1, count, colony_position.x, colony_position.y, spawn_position.x, spawn_position.y, angle, distance
         );
@@ -426,7 +426,7 @@ fn spawn_ant_batch_with_ai(
         spawned_ants.len(), colony_props.color_hue
     );
 
-    debug!("spawn_ant_batch_with_ai returning");
+    info!("spawn_ant_batch_with_ai returning");
     spawned_ants
 }
 
@@ -437,14 +437,14 @@ fn spawn_ant(
     colony_props: &ColonyProperties,
     colony_position: Vec2,
 ) -> Entity {
-    debug!("running spawn_ant");
+    info!("running spawn_ant");
     // Generate random position near colony center
     let mut rng = rand::thread_rng();
     let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
     let distance = rng.gen::<f32>() * colony_props.radius;
     let spawn_position = colony_position + Vec2::new(angle.cos(), angle.sin()) * distance;
 
-    debug!(
+    info!(
         "Spawning ant: colony_pos=({:.2}, {:.2}), spawn_pos=({:.2}, {:.2}), angle={:.2}, distance={:.2}",
         colony_position.x, colony_position.y, spawn_position.x, spawn_position.y, angle, distance
     );
@@ -504,12 +504,12 @@ fn spawn_ant(
         Transform::from_translation(Vec3::new(spawn_position.x, spawn_position.y, 0.0)),
     )).id();
 
-    debug!(
+    info!(
         "Ant {:?} spawned successfully with type: Worker, color_hue: {:.2}",
         ant_entity, colony_props.color_hue
     );
 
-    debug!("spawn_ant returning");
+    info!("spawn_ant returning");
     ant_entity
 }
 
@@ -526,6 +526,6 @@ impl Plugin for ColonyPlugin {
             //colony_territory_system,
             colony_stats_system,
         ));
-        debug!("ColonyPlugin systems registered");
+        info!("ColonyPlugin systems registered");
     }
 } 

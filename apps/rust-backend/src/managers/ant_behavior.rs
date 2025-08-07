@@ -99,7 +99,7 @@ pub fn scout_scorer_system(
             score.set(scout_score);
             
             if scout_score > 0.0 {
-                trace!("Ant {:?} is a scout (score: {:.2})", actor, scout_score);
+                info!("Ant {:?} is a scout (score: {:.2})", actor, scout_score);
             }
         }
     }
@@ -117,7 +117,7 @@ pub fn carrying_food_scorer_system(
             score.set(carrying_score);
             
             if carrying_score > 0.0 {
-                trace!("Ant {:?} is carrying food (weight: {:.2})", actor, resources.current_weight);
+                info!("Ant {:?} is carrying food (weight: {:.2})", actor, resources.current_weight);
             }
         }
     }
@@ -135,7 +135,7 @@ pub fn near_food_scorer_system(
             let mut closest_food_distance = f32::INFINITY;
             let food_count = food_sources.iter().count();
             
-            debug!("Checking ant {:?} against {} food sources at position ({:.1}, {:.1})", 
+            info!("Checking ant {:?} against {} food sources at position ({:.1}, {:.1})", 
                    actor, food_count, physics.position.x, physics.position.y);
             
             for (food_props, food_transform) in food_sources.iter() {
@@ -143,7 +143,7 @@ pub fn near_food_scorer_system(
                     let food_pos = food_transform.translation.truncate();
                     let distance = physics.position.distance(food_pos);
                     
-                    debug!("  Food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
+                    info!("  Food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
                            food_pos.x, food_pos.y, food_props.amount, distance);
                     
                     // Score based on proximity and food amount (increased detection range)
@@ -156,7 +156,7 @@ pub fn near_food_scorer_system(
                     };
                     
                     if proximity_score > 0.0 {
-                        debug!("    Proximity score: {:.3}", proximity_score);
+                        info!("    Proximity score: {:.3}", proximity_score);
                     }
                     
                     best_score = best_score.max(proximity_score);
@@ -199,7 +199,7 @@ pub fn near_colony_scorer_system(
             score.set(best_score);
             
             if best_score > 0.5 {
-                trace!("Ant {:?} near colony (score: {:.2})", actor, best_score);
+                info!("Ant {:?} near colony (score: {:.2})", actor, best_score);
             }
         }
     }
@@ -242,7 +242,7 @@ pub fn pheromone_strength_scorer_system(
             score.set(pheromone_score);
             
             if pheromone_score > 0.3 {
-                trace!("Worker ant {:?} detects pheromone trail (score: {:.2})", actor, pheromone_score);
+                info!("Worker ant {:?} detects pheromone trail (score: {:.2})", actor, pheromone_score);
             }
         }
     }
@@ -281,7 +281,7 @@ pub fn exploration_urge_scorer_system(
             score.set(exploration_score.clamp(0.0, 1.0));
             
             if exploration_score > 0.5 {
-                trace!("Ant {:?} has exploration urge (score: {:.2})", actor, exploration_score);
+                info!("Ant {:?} has exploration urge (score: {:.2})", actor, exploration_score);
             }
         }
     }
@@ -304,7 +304,7 @@ pub fn needs_rest_scorer_system(
             score.set(rest_score);
             
             if rest_score > 0.0 {
-                debug!("Ant {:?} needs rest (score: {:.2}, health: {:.1})", actor, rest_score, health.health);
+                info!("Ant {:?} needs rest (score: {:.2}, health: {:.1})", actor, rest_score, health.health);
             }
         }
     }
@@ -322,7 +322,7 @@ pub fn stuck_scorer_system(
             score.set(stuck_score);
             
             if stuck_score > 0.0 {
-                debug!("Ant {:?} appears stuck (score: {:.2}, counter: {})", actor, stuck_score, memory.stuck_counter);
+                info!("Ant {:?} appears stuck (score: {:.2}, counter: {})", actor, stuck_score, memory.stuck_counter);
             }
         }
     }
@@ -343,7 +343,7 @@ pub fn wander_action_system(
                 if let Ok(mut target) = ants.get_mut(*actor) {
                     *target = AntTarget::None;
                     *action_state = ActionState::Executing;
-                    trace!("Ant {:?} started wandering", actor);
+                    info!("Ant {:?} started wandering", actor);
                 }
             }
             ActionState::Executing => {
@@ -384,7 +384,7 @@ pub fn seek_food_action_system(
                     if let Some(food_entity) = nearest_food {
                         *target = AntTarget::Food(food_entity);
                         *action_state = ActionState::Executing;
-                        debug!("Ant {:?} seeking food source {:?}", actor, food_entity);
+                        info!("Ant {:?} seeking food source {:?}", actor, food_entity);
                     } else {
                         *action_state = ActionState::Failure;
                     }
@@ -398,7 +398,7 @@ pub fn seek_food_action_system(
                             let distance = physics.position.distance(food_transform.translation.truncate());
                             if distance < 25.0 {
                                 *action_state = ActionState::Success;
-                                debug!("Ant {:?} reached food source {:?} (distance: {:.1})", actor, food_entity, distance);
+                                info!("Ant {:?} reached food source {:?} (distance: {:.1})", actor, food_entity, distance);
                             }
                         } else {
                             *action_state = ActionState::Failure;
@@ -427,14 +427,14 @@ pub fn collect_food_action_system(
                 if let Ok((mut resources, physics, mut target, mut state)) = ants.get_mut(*actor) {
                     let mut collected = false;
                     
-                    debug!("Ant {:?} attempting to collect food at position ({:.1}, {:.1})", 
+                    info!("Ant {:?} attempting to collect food at position ({:.1}, {:.1})", 
                            actor, physics.position.x, physics.position.y);
                     
                     for (mut food, food_transform) in food_sources.iter_mut() {
                         let food_pos = food_transform.translation.truncate();
                         let distance = physics.position.distance(food_pos);
                         
-                        debug!("  Checking food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
+                        info!("  Checking food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
                                food_pos.x, food_pos.y, food.amount, distance);
                         
                         if distance < 25.0 && food.amount > 0.0 {
@@ -458,7 +458,7 @@ pub fn collect_food_action_system(
                     }
                     
                     if !collected {
-                        debug!("Ant {:?} could not collect food (no food in range)", actor);
+                        info!("Ant {:?} could not collect food (no food in range)", actor);
                     }
                     
                     *action_state = if collected { ActionState::Success } else { ActionState::Failure };
@@ -502,7 +502,7 @@ pub fn return_to_colony_action_system(
                         if let Some(colony_entity) = nearest_colony {
                             *target = AntTarget::Colony(colony_entity);
                             *action_state = ActionState::Executing;
-                            debug!("Ant {:?} returning to colony {:?} with food (weight: {:.2})", 
+                            info!("Ant {:?} returning to colony {:?} with food (weight: {:.2})", 
                                    actor, colony_entity, resources.current_weight);
                         } else {
                             *action_state = ActionState::Failure;
@@ -520,7 +520,7 @@ pub fn return_to_colony_action_system(
                             let distance = physics.position.distance(colony_transform.translation.truncate());
                             if distance < colony_props.radius + 10.0 {
                                 *action_state = ActionState::Success;
-                                debug!("Ant {:?} reached colony, ready to deposit food", actor);
+                                info!("Ant {:?} reached colony, ready to deposit food", actor);
                             }
                         } else {
                             *action_state = ActionState::Failure;
@@ -537,6 +537,12 @@ pub fn return_to_colony_action_system(
 }
 
 /// System that handles depositing food at colony
+/// 
+/// IMPORTANT: This system transfers food from ants' carried resources directly to the colony's
+/// internal resource storage. The food does NOT get placed back on the simulation field as 
+/// a visible food source - it becomes part of the colony's stored resources and disappears
+/// from the ant's inventory. This prevents ants from getting stuck in a loop where they
+/// deposit food and then immediately try to collect it again.
 pub fn deposit_food_action_system(
     mut ants: Query<(&mut CarriedResources, &AntPhysics, &mut AntTarget, &mut AntState)>,
     mut colonies: Query<(&mut ColonyResources, &ColonyProperties, &Transform), With<Colony>>,
@@ -554,7 +560,8 @@ pub fn deposit_food_action_system(
                         let distance = physics.position.distance(colony_transform.translation.truncate());
                         
                         if distance < colony_props.radius + 10.0 && !resources.resources.is_empty() {
-                            // Transfer all carried resources to colony
+                            // Transfer all carried resources to colony's internal storage
+                            // NOTE: Food goes into colony storage, NOT back onto the simulation field
                             let total_deposited = resources.current_weight;
                             
                             for (food_type, amount) in resources.resources.drain() {
@@ -562,6 +569,7 @@ pub fn deposit_food_action_system(
                                 simulation_stats.total_food_collected += amount;
                             }
                             
+                            // Clear ant's inventory completely
                             resources.current_weight = 0.0;
                             *target = AntTarget::None;
                             
@@ -569,7 +577,7 @@ pub fn deposit_food_action_system(
                             *state = AntState::Wandering;
                             
                             deposited = true;
-                            info!("Ant {:?} deposited {:.2} food at colony", actor, total_deposited);
+                            info!("Ant {:?} deposited {:.2} food at colony (food stored internally, not placed on field)", actor, total_deposited);
                             break;
                         }
                     }

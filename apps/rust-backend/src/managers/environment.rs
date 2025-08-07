@@ -11,14 +11,14 @@ pub fn food_regeneration_system(
     mut food_sources: Query<&mut FoodSourceProperties, With<FoodSource>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running food_regeneration_system");
+    info!("running food_regeneration_system");
     for mut food in food_sources.iter_mut() {
         if food.is_renewable && food.amount < food.max_amount {
             // Regenerate food over time
             food.amount = (food.amount + food.regeneration_rate).min(food.max_amount);
         }
     }
-    debug!("food_regeneration_system returning");
+    info!("food_regeneration_system returning");
 }
 
 /// System to manage food source spoilage
@@ -27,7 +27,7 @@ pub fn food_spoilage_system(
     mut food_sources: Query<(Entity, &mut FoodSourceProperties), With<FoodSource>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running food_spoilage_system");
+    info!("running food_spoilage_system");
     for (entity, mut food) in food_sources.iter_mut() {
         // Apply spoilage
         food.amount = (food.amount - food.spoilage_rate).max(0.0);
@@ -37,24 +37,25 @@ pub fn food_spoilage_system(
             commands.entity(entity).despawn();
         }
     }
-    debug!("food_spoilage_system returning");
+    info!("food_spoilage_system returning");
 }
 
 /// System to spawn new food sources
 pub fn food_spawning_system(
     mut commands: Commands,
     food_sources: Query<&FoodSourceProperties, With<FoodSource>>,
+    colonies: Query<&Transform, With<Colony>>,
     simulation_state: Res<SimulationState>,
     world_bounds: Res<WorldBounds>,
 ) {
-    debug!("running food_spawning_system");
+    info!("running food_spawning_system");
     // Spawn new food sources more frequently (every 1000 ticks instead of 5000)
     if simulation_state.current_tick % 1000 == 0 {
         let current_food_count = food_sources.iter().count();
         let max_food_sources = 75; // Increased maximum number of food sources
         
         if current_food_count < max_food_sources {
-            spawn_random_food_source(&mut commands, &world_bounds);
+            spawn_random_food_source_away_from_colonies(&mut commands, &world_bounds, &colonies);
         }
     }
     
@@ -66,11 +67,11 @@ pub fn food_spawning_system(
             let max_food_sources = 75;
             
             if current_food_count < max_food_sources {
-                spawn_random_food_source(&mut commands, &world_bounds);
+                spawn_random_food_source_away_from_colonies(&mut commands, &world_bounds, &colonies);
             }
         }
     }
-    debug!("food_spawning_system returning");
+    info!("food_spawning_system returning");
 }
 
 /// System to manage weather effects
@@ -78,7 +79,7 @@ pub fn weather_system(
     mut ants: Query<(&mut AntHealth, &AntPhysics), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running weather_system");
+    info!("running weather_system");
     // Simulate weather effects on ants
     for (mut health, _physics) in ants.iter_mut() {
         // Rain doesn't affect energy anymore
@@ -89,7 +90,7 @@ pub fn weather_system(
             health.health = (health.health - 0.5).max(0.0);
         }
     }
-    debug!("weather_system returning");
+    info!("weather_system returning");
 }
 
 /// System to manage day/night cycle
@@ -97,7 +98,7 @@ pub fn day_night_cycle_system(
     mut ants: Query<(&mut AntHealth, &mut AntPhysics), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running day_night_cycle_system");
+    info!("running day_night_cycle_system");
     let time_of_day = (simulation_state.current_tick % 24000) as f32 / 24000.0; // 24-hour cycle
     
     for (_health, mut physics) in ants.iter_mut() {
@@ -110,7 +111,7 @@ pub fn day_night_cycle_system(
             physics.max_speed = 50.0; // Reset to base speed
         }
     }
-    debug!("day_night_cycle_system returning");
+    info!("day_night_cycle_system returning");
 }
 
 /// System to manage seasonal effects
@@ -118,7 +119,7 @@ pub fn seasonal_system(
     mut food_sources: Query<&mut FoodSourceProperties, With<FoodSource>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running seasonal_system");
+    info!("running seasonal_system");
     let season_progress = (simulation_state.current_tick % 100000) as f32 / 100000.0; // Seasonal cycle
     
     for mut food in food_sources.iter_mut() {
@@ -130,7 +131,7 @@ pub fn seasonal_system(
             food.regeneration_rate = 1.0;
         }
     }
-    debug!("seasonal_system returning");
+    info!("seasonal_system returning");
 }
 
 /// System to manage environmental hazards
@@ -139,7 +140,7 @@ pub fn environmental_hazards_system(
     mut ants: Query<(Entity, &mut AntHealth, &AntPhysics), With<Ant>>,
     simulation_state: Res<SimulationState>,
 ) {
-    debug!("running environmental_hazards_system");
+    info!("running environmental_hazards_system");
     for (entity, mut health, physics) in ants.iter_mut() {
         // Random environmental hazards
         if simulation_state.current_tick % 10000 == 0 {
@@ -156,7 +157,7 @@ pub fn environmental_hazards_system(
             }
         }
     }
-    debug!("environmental_hazards_system returning");
+    info!("environmental_hazards_system returning");
 }
 
 /// System to manage world boundaries
@@ -164,7 +165,7 @@ pub fn world_boundaries_system(
     mut ants: Query<&mut AntPhysics, With<Ant>>,
     world_bounds: Res<WorldBounds>,
 ) {
-    debug!("running world_boundaries_system");
+    info!("running world_boundaries_system");
     for mut physics in ants.iter_mut() {
         // Keep ants within world bounds
         physics.position.x = physics.position.x.clamp(world_bounds.min_x, world_bounds.max_x);
@@ -178,19 +179,85 @@ pub fn world_boundaries_system(
             physics.velocity.y *= -0.5;
         }
     }
-    debug!("world_boundaries_system returning");
+    info!("world_boundaries_system returning");
 }
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
-/// Spawn a random food source in the world
+/// Spawn a random food source in the world away from colonies
+fn spawn_random_food_source_away_from_colonies(
+    commands: &mut Commands,
+    world_bounds: &WorldBounds,
+    colonies: &Query<&Transform, With<Colony>>,
+) {
+    info!("running spawn_random_food_source_away_from_colonies");
+    let mut rng = rand::thread_rng();
+    
+    // Try up to 10 times to find a position away from colonies
+    for _attempt in 0..10 {
+        // Random position within centered world bounds
+        let x = rng.gen_range(world_bounds.min_x + 50.0..world_bounds.max_x - 50.0);
+        let y = rng.gen_range(world_bounds.min_y + 50.0..world_bounds.max_y - 50.0);
+        let candidate_position = Vec2::new(x, y);
+        
+        // Check distance to all colonies - minimum distance should be 30 units (close enough for ants to reach)
+        let min_distance_to_colony = 30.0;
+        let mut too_close_to_colony = false;
+        
+        for colony_transform in colonies.iter() {
+            let colony_position = colony_transform.translation.truncate();
+            let distance = candidate_position.distance(colony_position);
+            
+            if distance < min_distance_to_colony {
+                too_close_to_colony = true;
+                break;
+            }
+        }
+        
+        // If position is far enough from all colonies, spawn food here
+        if !too_close_to_colony {
+            // Random food type
+            let food_types = vec!["seeds", "sugar", "protein", "fruit"];
+            let food_type = food_types[rng.gen_range(0..food_types.len())];
+            
+            // Random properties
+            let max_amount = rng.gen_range(50.0..200.0);
+            let regeneration_rate = rng.gen_range(0.1..2.0);
+            let nutritional_value = rng.gen_range(10.0..50.0);
+            
+            commands.spawn((
+                FoodSource,
+                FoodSourceProperties {
+                    food_type: food_type.to_string(),
+                    amount: max_amount,
+                    max_amount,
+                    regeneration_rate,
+                    is_renewable: true,
+                    nutritional_value,
+                    spoilage_rate: 0.01,
+                    discovery_difficulty: rng.gen_range(0.1..1.0),
+                },
+                Transform::from_translation(Vec3::new(x, y, 0.0)),
+            ));
+            
+            info!("Spawned food source at ({:.1}, {:.1}) away from colonies", x, y);
+            info!("spawn_random_food_source_away_from_colonies returning");
+            return;
+        }
+    }
+    
+    info!("Failed to find suitable position away from colonies after 10 attempts");
+    info!("spawn_random_food_source_away_from_colonies returning");
+}
+
+/// Spawn a random food source in the world (legacy function - kept for compatibility)
 fn spawn_random_food_source(
     commands: &mut Commands,
     world_bounds: &WorldBounds,
 ) {
-    debug!("running spawn_random_food_source");
+    info!("running spawn_random_food_source");
     let mut rng = rand::thread_rng();
     
     // Random position within centered world bounds
@@ -220,7 +287,7 @@ fn spawn_random_food_source(
         },
         Transform::from_translation(Vec3::new(x, y, 0.0)),
     ));
-    debug!("spawn_random_food_source returning");
+    info!("spawn_random_food_source returning");
 }
 
 /// Plugin for environment management systems
@@ -228,7 +295,7 @@ pub struct EnvironmentPlugin;
 
 impl Plugin for EnvironmentPlugin {
     fn build(&self, app: &mut App) {
-        debug!("running EnvironmentPlugin build");
+        info!("running EnvironmentPlugin build");
         app.add_systems(Update, (
             food_regeneration_system,
             food_spoilage_system,
@@ -239,6 +306,6 @@ impl Plugin for EnvironmentPlugin {
             environmental_hazards_system,
             world_boundaries_system,
         ));
-        debug!("EnvironmentPlugin build returning");
+        info!("EnvironmentPlugin build returning");
     }
 } 

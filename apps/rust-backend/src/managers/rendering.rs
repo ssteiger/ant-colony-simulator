@@ -268,7 +268,7 @@ fn update_ant_rendering(
             }
             bevy::asset::LoadState::Loading => {
                 // Texture is still loading - don't render anything yet, wait for next frame
-                debug!("Ant texture still loading, waiting...");
+                info!("Ant texture still loading, waiting...");
             }
             bevy::asset::LoadState::Failed => {
                 // Texture failed to load - try to reload it
@@ -278,7 +278,7 @@ fn update_ant_rendering(
             }
             _ => {
                 // Other states (NotLoaded, etc.) - texture might not be available yet
-                debug!("Ant texture not available, state: {:?}", load_state);
+                info!("Ant texture not available, state: {:?}", load_state);
             }
         }
     }
@@ -409,7 +409,7 @@ fn cleanup_territory_indicators(
     // This system would clean up territory indicators that are no longer needed
     // For now, we'll just log if we find any orphaned sprites
     for entity in territory_indicators.iter() {
-        debug!("Found orphaned sprite entity {:?}, will be cleaned up by Bevy", entity);
+        info!("Found orphaned sprite entity {:?}, will be cleaned up by Bevy", entity);
     }
 }
 
