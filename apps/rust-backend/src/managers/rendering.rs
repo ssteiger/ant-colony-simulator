@@ -6,6 +6,8 @@ use bevy::ecs::system::Resource;
 use bevy::input::mouse::{MouseWheel, MouseMotion};
 use bevy::render::camera::RenderTarget;
 use bevy::window::WindowRef;
+use bevy::render::mesh::shape::Circle;
+use bevy::sprite::{MaterialMesh2dBundle, ColorMaterial};
 
 /// Marker component for the main game camera
 #[derive(Component)]
@@ -285,45 +287,27 @@ fn update_ant_rendering(
 /// Update colony visual components
 fn update_colony_rendering(
     mut commands: Commands,
-    colonies: Query<(Entity, &ColonyProperties), (With<Colony>, Without<Sprite>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    colonies: Query<(Entity, &ColonyProperties), (With<Colony>, Without<Handle<Mesh>>)>,
 ) {
     for (entity, properties) in colonies.iter() {
-        // Create circular sprite for colony with rounded corners effect
-        let sprite = Sprite {
-            color: Color::hsl(properties.color_hue, 0.9, 0.5),
-            custom_size: Some(Vec2::new(properties.radius * 2.0, properties.radius * 2.0)),
-            ..default()
-        };
+        // Create a true circle mesh for the colony
+        let circle_mesh = Circle::new(properties.radius);
+        let mesh_handle = meshes.add(circle_mesh.into());
         
-        // Use multiple smaller sprites to create a circular appearance
-        let main_size = properties.radius * 2.0;
-        let overlay_size = properties.radius * 1.8;
+        // Create material with colony color
+        let material_handle = materials.add(ColorMaterial::from(
+            Color::hsl(properties.color_hue, 0.9, 0.5).with_a(0.8)
+        ));
         
-        commands.entity(entity).insert(SpriteBundle {
-            sprite: Sprite {
-                color: Color::hsl(properties.color_hue, 0.9, 0.5),
-                custom_size: Some(Vec2::new(main_size, main_size)),
-                ..default()
-            },
+        commands.entity(entity).insert(MaterialMesh2dBundle {
+            mesh: mesh_handle.into(),
+            material: material_handle,
             transform: Transform::from_translation(Vec3::new(
                 properties.center.x,
                 properties.center.y,
                 5.0,
-            )),
-            ..default()
-        });
-        
-        // Add a slightly smaller, more opaque overlay to create circular effect
-        commands.spawn(SpriteBundle {
-            sprite: Sprite {
-                color: Color::hsl(properties.color_hue, 0.9, 0.6).with_a(0.8),
-                custom_size: Some(Vec2::new(overlay_size, overlay_size)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(
-                properties.center.x,
-                properties.center.y,
-                5.1,
             )),
             ..default()
         });
@@ -333,65 +317,36 @@ fn update_colony_rendering(
 /// Update food source visual components
 fn update_food_source_rendering(
     mut commands: Commands,
-    food_sources: Query<(Entity, &FoodSourceProperties, &Transform), (With<FoodSource>, Without<Sprite>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    food_sources: Query<(Entity, &FoodSourceProperties, &Transform), (With<FoodSource>, Without<Handle<Mesh>>)>,
 ) {
     for (entity, properties, transform) in food_sources.iter() {
-        // Calculate food source size based on amount
-        let size = (properties.amount / properties.max_amount * 20.0).max(5.0);
+        // Calculate food source radius based on amount
+        let radius = (properties.amount / properties.max_amount * 10.0).max(2.5);
         
         // Choose color based on food type
         let color = match properties.food_type.as_str() {
             "berries" => Color::rgb(0.8, 0.2, 0.2), // Red
-            "leaves" => Color::rgb(0.2, 0.8, 0.2),  // Green
+            "leaves" => Color::rgb(0.6, 0.4, 0.2),  // Brown
             "seeds" => Color::rgb(0.8, 0.8, 0.2),   // Yellow
-            _ => Color::rgb(0.6, 0.4, 0.2),         // Brown
+            _ => Color::rgb(0.2, 0.8, 0.2),         // Green
         };
 
-        // Create circular-looking sprites with layered effect
-        let main_size = size;
-        let overlay_size = size * 0.8;
-        let center_size = size * 0.6;
+        // Create a single solid circle mesh for the food source
+        let circle_mesh = Circle::new(radius);
+        let mesh_handle = meshes.add(circle_mesh.into());
         
-        commands.entity(entity).insert(SpriteBundle {
-            sprite: Sprite {
-                color,
-                custom_size: Some(Vec2::new(main_size, main_size)),
-                ..default()
-            },
+        // Create material with food source color (solid, no transparency issues)
+        let material_handle = materials.add(ColorMaterial::from(color));
+        
+        commands.entity(entity).insert(MaterialMesh2dBundle {
+            mesh: mesh_handle.into(),
+            material: material_handle,
             transform: Transform::from_translation(Vec3::new(
                 transform.translation.x,
                 transform.translation.y,
                 5.0,
-            )),
-            ..default()
-        });
-        
-        // Add lighter overlay for circular effect
-        commands.spawn(SpriteBundle {
-            sprite: Sprite {
-                color: color.with_a(0.7),
-                custom_size: Some(Vec2::new(overlay_size, overlay_size)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(
-                transform.translation.x,
-                transform.translation.y,
-                5.1,
-            )),
-            ..default()
-        });
-        
-        // Add bright center highlight
-        commands.spawn(SpriteBundle {
-            sprite: Sprite {
-                color: Color::WHITE.with_a(0.3),
-                custom_size: Some(Vec2::new(center_size, center_size)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(
-                transform.translation.x,
-                transform.translation.y,
-                5.2,
             )),
             ..default()
         });
