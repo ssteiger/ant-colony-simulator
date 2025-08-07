@@ -11,6 +11,10 @@ pub fn spawn_ant_with_big_brain(
     position: Vec2,
     colony_id: Option<Entity>
 ) -> Entity {
+    // Determine ant type (90% workers, 10% scouts)
+    let mut rng = rand::thread_rng();
+    let role = if rng.gen::<f32>() < 0.1 { "scout" } else { "worker" };
+    
     commands.spawn((
         // Core ant components
         Ant,
@@ -35,10 +39,21 @@ pub fn spawn_ant_with_big_brain(
             age_ticks: 0,
             lifespan_ticks: 10000,
         },
+        AntState::Wandering,
         CarriedResources {
             resources: std::collections::HashMap::new(),
             capacity: 25.0,
             current_weight: 0.0,
+        },
+        AntType {
+            name: if role == "scout" { "Scout".to_string() } else { "Worker".to_string() },
+            role: role.to_string(),
+            base_speed: 50.0,
+            base_strength: 10.0,
+            base_health: 100.0,
+            carrying_capacity: 25.0,
+            color_hue: 0.0, // Will be set by colony if provided
+            special_abilities: Vec::new(),
         },
         AntMemory {
             known_food_sources: Vec::new(),
@@ -68,11 +83,12 @@ pub fn spawn_ant_with_big_brain(
             
             // Medium priority (role-specific behaviors)
             .when(NearFoodScorer, CollectFoodAction)         // Any ant near food will collect it
-            .when(PheromoneStrengthScorer, FollowPheromoneAction) // Workers follow pheromone trails
+            .when(PheromoneStrengthScorer, SeekFoodAction)   // Workers follow pheromone trails to food
             .when(ScoutScorer, MarkFoodSourceAction)         // Scouts mark discovered food
-            .when(ScoutScorer, ExploreAction)                // Scouts explore when not marking
+            .when(ScoutScorer, SeekFoodAction)               // Scouts actively seek new food sources
             
-            // Low priority (default wandering)
+            // Low priority (basic food seeking and exploration)
+            .when(ExplorationUrgeScorer, SeekFoodAction)     // All ants occasionally seek food
             .otherwise(WanderAction),
     )).id()
 }

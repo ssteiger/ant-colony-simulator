@@ -76,8 +76,8 @@ pub fn colony_spawning_system(
                 }
                 
                 if ants_to_spawn > 0 {
-                    // Spawn ants in batch
-                    let spawned_ants = spawn_ant_batch(&mut commands, &colony_props, transform.translation.truncate(), ants_to_spawn);
+                    // Spawn ants with Big Brain AI
+                    let spawned_ants = spawn_ant_batch_with_ai(&mut commands, &colony_props, transform.translation.truncate(), ants_to_spawn);
                     total_spawned += spawned_ants.len();
                     
                     debug!(
@@ -389,15 +389,15 @@ fn consume_spawning_resources(
     debug!("consume_spawning_resources returning");
 }
 
-/// Spawn multiple ants for a colony in a batch (optimized version)
+/// Spawn multiple ants for a colony in a batch with Big Brain AI
 #[instrument(skip(commands, colony_props))]
-fn spawn_ant_batch(
+fn spawn_ant_batch_with_ai(
     commands: &mut Commands,
     colony_props: &ColonyProperties,
     colony_position: Vec2,
     count: i32,
 ) -> Vec<Entity> {
-    debug!("running spawn_ant_batch for {} ants", count);
+    debug!("running spawn_ant_batch_with_ai for {} ants", count);
     let mut spawned_ants = Vec::with_capacity(count as usize);
     let mut rng = rand::thread_rng();
     
@@ -408,74 +408,25 @@ fn spawn_ant_batch(
         let spawn_position = colony_position + Vec2::new(angle.cos(), angle.sin()) * distance;
 
         debug!(
-            "Batch spawning ant {}/{}: colony_pos=({:.2}, {:.2}), spawn_pos=({:.2}, {:.2}), angle={:.2}, distance={:.2}",
+            "Batch spawning ant {}/{} with AI: colony_pos=({:.2}, {:.2}), spawn_pos=({:.2}, {:.2}), angle={:.2}, distance={:.2}",
             i + 1, count, colony_position.x, colony_position.y, spawn_position.x, spawn_position.y, angle, distance
         );
 
-        let ant_entity = commands.spawn((
-            Ant,
-            AntPhysics {
-                position: spawn_position,
-                velocity: Vec2::ZERO,
-                max_speed: 50.0,
-                acceleration: 100.0,
-                rotation: 0.0,
-                rotation_speed: 2.0,
-                desired_direction: Vec2::new(1.0, 0.0),
-                momentum: 0.95,
-                last_positions: Vec::new(),
-                turn_smoothness: 3.0,
-                wander_angle: 0.0,
-                wander_change: 0.3,
-                obstacle_avoidance_force: Vec2::ZERO,
-            },
-            AntHealth {
-                health: 100.0,
-                max_health: 100.0,
-                age_ticks: 0,
-                lifespan_ticks: 10000,
-            },
-            AntState::Wandering,
-            CarriedResources {
-                resources: HashMap::new(),
-                capacity: 10.0,
-                current_weight: 0.0,
-            },
-            AntTarget::None,
-            AntMemory {
-                known_food_sources: Vec::new(),
-                known_colonies: Vec::new(),
-                last_food_source: None,
-                last_action_tick: 0,
-                pheromone_sensitivity: 1.0,
-                visited_positions: Vec::new(),
-                last_stuck_check: 0,
-                stuck_counter: 0,
-                exploration_radius: 100.0,
-                path_history: Vec::new(),
-            },
-            AntType {
-                name: "Worker".to_string(),
-                role: "worker".to_string(),
-                base_speed: 50.0,
-                base_strength: 10.0,
-                base_health: 100.0,
-                carrying_capacity: 10.0,
-                color_hue: colony_props.color_hue,
-                special_abilities: Vec::new(),
-            },
-            Transform::from_translation(Vec3::new(spawn_position.x, spawn_position.y, 0.0)),
-        )).id();
+        // Use the Big Brain spawning function
+        let ant_entity = crate::managers::ant_spawn::spawn_ant_with_big_brain(commands, spawn_position, None);
+        
+        // Update the ant to have the colony's color (will be applied next frame)
+        // We'll use a system to update the color since Commands defer the changes
 
         spawned_ants.push(ant_entity);
     }
 
-    debug!(
-        "Batch spawned {} ants successfully with color_hue: {:.2}",
+    info!(
+        "🐜 Batch spawned {} ants with Big Brain AI, color_hue: {:.2}",
         spawned_ants.len(), colony_props.color_hue
     );
 
-    debug!("spawn_ant_batch returning");
+    debug!("spawn_ant_batch_with_ai returning");
     spawned_ants
 }
 

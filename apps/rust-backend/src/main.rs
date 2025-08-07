@@ -3,7 +3,7 @@ use anyhow::Result;
 use clap::Parser;
 use sqlx::postgres::PgPoolOptions;
 use tracing::{info, Level};
-use tracing_subscriber;
+use tracing_subscriber::{EnvFilter, fmt};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -42,8 +42,17 @@ fn main() -> Result<()> {
         _ => Level::INFO,
     };
 
+    // Configure tracing to filter out wgpu buffer creation logs
     tracing_subscriber::fmt()
-        .with_max_level(log_level)
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("wgpu=warn".parse().unwrap())
+                .add_directive("wgpu_core=warn".parse().unwrap())
+                .add_directive("wgpu_hal=warn".parse().unwrap())
+                .add_directive("bevy_render=warn".parse().unwrap())
+                .add_directive("bevy_wgpu=warn".parse().unwrap())
+                .add_directive(format!("ant_colony_simulator={}", log_level.to_string().to_lowercase()).parse().unwrap())
+        )
         .with_target(false)
         .with_thread_ids(false)
         .with_line_number(true)

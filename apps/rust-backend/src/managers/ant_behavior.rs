@@ -1,7 +1,7 @@
 use crate::models::*;
 use bevy::prelude::*;
 use big_brain::prelude::*;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 
 // ============================================================================
 // BIG-BRAIN SCORERS - Decision Inputs for Ant AI
@@ -132,28 +132,42 @@ pub fn near_food_scorer_system(
     for (Actor(actor), mut score) in scorers.iter_mut() {
         if let Ok(physics) = ant_physics.get(*actor) {
             let mut best_score: f32 = 0.0;
+            let mut closest_food_distance = f32::INFINITY;
+            let food_count = food_sources.iter().count();
+            
+            debug!("Checking ant {:?} against {} food sources at position ({:.1}, {:.1})", 
+                   actor, food_count, physics.position.x, physics.position.y);
             
             for (food_props, food_transform) in food_sources.iter() {
                 if food_props.amount > 0.0 {
-                    let distance = physics.position.distance(food_transform.translation.truncate());
+                    let food_pos = food_transform.translation.truncate();
+                    let distance = physics.position.distance(food_pos);
                     
-                    // Score based on proximity and food amount
-                    let proximity_score = if distance < 150.0 {
-                        let base_score = 1.0 - (distance / 150.0);
+                    debug!("  Food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
+                           food_pos.x, food_pos.y, food_props.amount, distance);
+                    
+                    // Score based on proximity and food amount (increased detection range)
+                    let proximity_score = if distance < 200.0 {
+                        let base_score = 1.0 - (distance / 200.0);
                         // Boost score based on food amount
                         base_score * (food_props.amount / 100.0).clamp(0.1, 1.0)
                     } else {
                         0.0
                     };
                     
+                    if proximity_score > 0.0 {
+                        debug!("    Proximity score: {:.3}", proximity_score);
+                    }
+                    
                     best_score = best_score.max(proximity_score);
+                    closest_food_distance = closest_food_distance.min(distance);
                 }
             }
             
             score.set(best_score);
             
-            if best_score > 0.3 {
-                trace!("Ant {:?} near food (score: {:.2})", actor, best_score);
+            if best_score > 0.0 {
+                info!("Ant {:?} near food (score: {:.3}, closest: {:.1})", actor, best_score, closest_food_distance);
             }
         }
     }
@@ -382,8 +396,9 @@ pub fn seek_food_action_system(
                     if let AntTarget::Food(food_entity) = target {
                         if let Ok((_, _, food_transform)) = food_sources.get(*food_entity) {
                             let distance = physics.position.distance(food_transform.translation.truncate());
-                            if distance < 15.0 {
+                            if distance < 25.0 {
                                 *action_state = ActionState::Success;
+                                debug!("Ant {:?} reached food source {:?} (distance: {:.1})", actor, food_entity, distance);
                             }
                         } else {
                             *action_state = ActionState::Failure;
@@ -408,13 +423,21 @@ pub fn collect_food_action_system(
     for (Actor(actor), mut action_state) in action_query.iter_mut() {
         match *action_state {
             ActionState::Requested => {
+                info!("CollectFoodAction requested for ant {:?}", actor);
                 if let Ok((mut resources, physics, mut target, mut state)) = ants.get_mut(*actor) {
                     let mut collected = false;
                     
+                    debug!("Ant {:?} attempting to collect food at position ({:.1}, {:.1})", 
+                           actor, physics.position.x, physics.position.y);
+                    
                     for (mut food, food_transform) in food_sources.iter_mut() {
-                        let distance = physics.position.distance(food_transform.translation.truncate());
+                        let food_pos = food_transform.translation.truncate();
+                        let distance = physics.position.distance(food_pos);
                         
-                        if distance < 15.0 && food.amount > 0.0 {
+                        debug!("  Checking food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
+                               food_pos.x, food_pos.y, food.amount, distance);
+                        
+                        if distance < 25.0 && food.amount > 0.0 {
                             let collect_amount = (food.amount * 0.1).min(resources.capacity - resources.current_weight);
                             
                             if collect_amount > 0.0 {
@@ -427,13 +450,21 @@ pub fn collect_food_action_system(
                                 *state = AntState::CarryingFood;
                                 
                                 collected = true;
-                                info!("Ant {:?} collected {:.2} food and transitioned to CarryingFood state", actor, collect_amount);
+                                info!("🍎 Ant {:?} collected {:.2} {} food and transitioned to CarryingFood state", 
+                                      actor, collect_amount, food.food_type);
                                 break;
                             }
                         }
                     }
                     
+                    if !collected {
+                        debug!("Ant {:?} could not collect food (no food in range)", actor);
+                    }
+                    
                     *action_state = if collected { ActionState::Success } else { ActionState::Failure };
+                } else {
+                    warn!("Could not get ant components for {:?}", actor);
+                    *action_state = ActionState::Failure;
                 }
             }
             ActionState::Cancelled => {
@@ -655,7 +686,7 @@ impl Plugin for AntBehaviorPlugin {
         ).in_set(BigBrainSet::Actions));
         
         // Add the basic movement system that actually moves the ants
-        app.add_systems(Update, crate::managers::basic_ant_movement_system);
+        app.add_systems(Update, crate::managers::ant_spawn::basic_ant_movement_system);
     }
 }
 
