@@ -126,11 +126,19 @@ pub fn carrying_food_scorer_system(
 /// System that scores proximity to food sources
 pub fn near_food_scorer_system(
     ant_physics: Query<&AntPhysics>,
+    ant_resources: Query<&CarriedResources>,
     food_sources: Query<(&FoodSourceProperties, &Transform), With<FoodSource>>,
     mut scorers: Query<(&Actor, &mut Score), With<NearFoodScorer>>,
 ) {
     for (Actor(actor), mut score) in scorers.iter_mut() {
         if let Ok(physics) = ant_physics.get(*actor) {
+            // Don't seek food if already carrying food - should return to colony instead
+            if let Ok(resources) = ant_resources.get(*actor) {
+                if !resources.resources.is_empty() {
+                    score.set(0.0);
+                    continue;
+                }
+            }
             let mut best_score: f32 = 0.0;
             let mut closest_food_distance = f32::INFINITY;
             let food_count = food_sources.iter().count();
@@ -143,8 +151,10 @@ pub fn near_food_scorer_system(
                     let food_pos = food_transform.translation.truncate();
                     let distance = physics.position.distance(food_pos);
                     
+                    /*
                     info!("  Food at ({:.1}, {:.1}), amount: {:.1}, distance: {:.1}", 
                            food_pos.x, food_pos.y, food_props.amount, distance);
+                    */
                     
                     // Score based on proximity and food amount (increased detection range)
                     let proximity_score = if distance < 200.0 {
@@ -359,14 +369,20 @@ pub fn wander_action_system(
 
 /// System that handles food seeking behavior
 pub fn seek_food_action_system(
-    mut ants: Query<(&mut AntTarget, &AntPhysics)>,
+    mut ants: Query<(&mut AntTarget, &AntPhysics, &CarriedResources)>,
     food_sources: Query<(Entity, &FoodSourceProperties, &Transform), With<FoodSource>>,
     mut action_query: Query<(&Actor, &mut ActionState), With<SeekFoodAction>>,
 ) {
     for (Actor(actor), mut action_state) in action_query.iter_mut() {
         match *action_state {
             ActionState::Requested => {
-                if let Ok((mut target, physics)) = ants.get_mut(*actor) {
+                if let Ok((mut target, physics, resources)) = ants.get_mut(*actor) {
+                    // Don't seek food if already carrying food
+                    if !resources.resources.is_empty() {
+                        *action_state = ActionState::Failure;
+                        info!("Ant {:?} can't seek food - already carrying food", actor);
+                        continue;
+                    }
                     // Find nearest food source with food
                     let mut nearest_food = None;
                     let mut nearest_distance = f32::INFINITY;
@@ -392,7 +408,13 @@ pub fn seek_food_action_system(
             }
             ActionState::Executing => {
                 // Check if ant reached food
-                if let Ok((target, physics)) = ants.get(*actor) {
+                if let Ok((target, physics, resources)) = ants.get(*actor) {
+                    // Cancel if ant picked up food while seeking
+                    if !resources.resources.is_empty() {
+                        *action_state = ActionState::Success;
+                        info!("Ant {:?} picked up food while seeking, transitioning to return", actor);
+                        continue;
+                    }
                     if let AntTarget::Food(food_entity) = target {
                         if let Ok((_, _, food_transform)) = food_sources.get(*food_entity) {
                             let distance = physics.position.distance(food_transform.translation.truncate());
@@ -414,7 +436,9 @@ pub fn seek_food_action_system(
     }
 }
 
-/// System that handles food collection behavior (simplified)
+
+
+/// System that handles food collection behavior
 pub fn collect_food_action_system(
     mut ants: Query<(&mut CarriedResources, &AntPhysics, &mut AntTarget, &mut AntState)>,
     mut food_sources: Query<(&mut FoodSourceProperties, &Transform), With<FoodSource>>,

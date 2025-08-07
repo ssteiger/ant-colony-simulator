@@ -74,9 +74,6 @@ pub fn spawn_ant_with_big_brain(
         Thinker::build()
             .picker(Highest) // Choose action with highest utility score
             
-            // Critical priorities (survival)
-            .when(StuckScorer, EscapeAction)
-            
             // High priority (food management for workers)
             .when(CarryingFoodScorer, ReturnToColonyAction)
             .when(NearColonyScorer, DepositFoodAction)
