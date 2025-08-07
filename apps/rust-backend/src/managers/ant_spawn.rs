@@ -142,7 +142,7 @@ pub fn basic_ant_movement_system(
                     let food_pos = food_transform.translation.truncate();
                     (food_pos - physics.position).normalize_or_zero()
                 } else {
-                    calculate_wander_direction(&physics)
+                    calculate_wander_direction(&mut physics)
                 }
             }
             AntTarget::Colony(colony_entity) => {
@@ -150,14 +150,14 @@ pub fn basic_ant_movement_system(
                     let colony_pos = colony_transform.translation.truncate();
                     (colony_pos - physics.position).normalize_or_zero()
                 } else {
-                    calculate_wander_direction(&physics)
+                    calculate_wander_direction(&mut physics)
                 }
             }
             AntTarget::Position(pos) => {
                 (*pos - physics.position).normalize_or_zero()
             }
             AntTarget::None => {
-                calculate_wander_direction(&physics)
+                calculate_wander_direction(&mut physics)
             }
         };
         
@@ -188,19 +188,26 @@ pub fn basic_ant_movement_system(
             physics.rotation = physics.velocity.y.atan2(physics.velocity.x);
             transform.rotation = Quat::from_rotation_z(physics.rotation);
         }
+        
+        // Update position history for pheromone trails and stuck detection
+        let current_position = physics.position;
+        physics.last_positions.push(current_position);
+        if physics.last_positions.len() > 10 {
+            physics.last_positions.remove(0);
+        }
     }
 }
 
 /// Calculate realistic wandering behavior
-fn calculate_wander_direction(physics: &AntPhysics) -> Vec2 {
+fn calculate_wander_direction(physics: &mut AntPhysics) -> Vec2 {
     let mut rng = rand::thread_rng();
     
     // Update wander angle with small random changes for smooth movement
-    let wander_angle = physics.wander_angle + (rng.gen::<f32>() - 0.5) * physics.wander_change;
+    physics.wander_angle += (rng.gen::<f32>() - 0.5) * physics.wander_change;
     
     // Create a circle in front of the ant for wander target
     let circle_center = physics.position + physics.velocity.normalize_or_zero() * 30.0;
-    let wander_target = circle_center + Vec2::new(wander_angle.cos(), wander_angle.sin()) * 15.0;
+    let wander_target = circle_center + Vec2::new(physics.wander_angle.cos(), physics.wander_angle.sin()) * 15.0;
     
     (wander_target - physics.position).normalize_or_zero()
 }

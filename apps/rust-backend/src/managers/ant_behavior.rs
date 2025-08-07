@@ -437,6 +437,9 @@ impl Plugin for AntBehaviorPlugin {
             seek_food_action_system,
             collect_food_action_system,
         ).in_set(BigBrainSet::Actions));
+        
+        // Add the basic movement system that actually moves the ants
+        app.add_systems(Update, crate::managers::basic_ant_movement_system);
     }
 }
 

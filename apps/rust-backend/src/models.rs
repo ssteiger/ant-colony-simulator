@@ -198,6 +198,8 @@ pub struct SimulationState {
     pub world_bounds: WorldBounds,
     pub is_running: bool,
     pub simulation_speed: f32,
+    pub max_spawn_batch_size: i32, // Maximum ants to spawn per colony per spawning cycle
+    pub spawn_tick_interval: i64,  // How often spawning occurs (in ticks)
 }
 
 /// World boundaries - supports both width/height format and min/max coordinate format

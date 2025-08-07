@@ -48,24 +48,54 @@ pub fn colony_spawning_system(
                 colony_props.population, colony_props.max_population, can_spawn, simulation_state.current_tick
             );
             
-            if can_spawn && simulation_state.current_tick % 100 == 0 {
-                // Spawn a new ant
-                let ant_entity = spawn_ant(&mut commands, &colony_props, transform.translation.truncate());
-                total_spawned += 1;
+            // Spawn ants using configurable frequency and batch size
+            if can_spawn && simulation_state.current_tick % simulation_state.spawn_tick_interval == 0 {
+                // Calculate how many ants we can spawn this cycle
+                let ants_needed = colony_props.max_population - colony_props.population;
+                let batch_size = ants_needed.min(simulation_state.max_spawn_batch_size);
                 
-                debug!(
-                    "Spawned ant {:?} for colony at ({:.2}, {:.2}), new population: {}",
-                    ant_entity, transform.translation.x, transform.translation.y, colony_props.population + 1
-                );
+                // Check if we have enough resources for the batch
+                let mut ants_to_spawn = 0;
+                for _ in 0..batch_size {
+                    if has_sufficient_resources(&resources.resources, &nest.upgrade_cost) {
+                        ants_to_spawn += 1;
+                        // Pre-consume resources to check next ant
+                        consume_spawning_resources(&mut resources.resources, &nest.upgrade_cost);
+                    } else {
+                        break;
+                    }
+                }
                 
-                // Consume resources for spawning
-                let old_resources = resources.resources.clone();
-                consume_spawning_resources(&mut resources.resources, &nest.upgrade_cost);
+                // Restore resources (we'll consume them properly when spawning)
+                for _ in 0..ants_to_spawn {
+                    for (resource_type, cost_amount) in &nest.upgrade_cost {
+                        if let Some(available) = resources.resources.get_mut(resource_type) {
+                            *available += cost_amount;
+                        }
+                    }
+                }
                 
-                debug!(
-                    "Consumed spawning resources: {:?} -> {:?}",
-                    old_resources, resources.resources
-                );
+                if ants_to_spawn > 0 {
+                    // Spawn ants in batch
+                    let spawned_ants = spawn_ant_batch(&mut commands, &colony_props, transform.translation.truncate(), ants_to_spawn);
+                    total_spawned += spawned_ants.len();
+                    
+                    debug!(
+                        "Spawned {} ants for colony at ({:.2}, {:.2}), new population: {}",
+                        spawned_ants.len(), transform.translation.x, transform.translation.y, colony_props.population + spawned_ants.len() as i32
+                    );
+                    
+                    // Consume resources for all spawned ants
+                    let old_resources = resources.resources.clone();
+                    for _ in 0..spawned_ants.len() {
+                        consume_spawning_resources(&mut resources.resources, &nest.upgrade_cost);
+                    }
+                    
+                    debug!(
+                        "Consumed spawning resources for {} ants: {:?} -> {:?}",
+                        spawned_ants.len(), old_resources, resources.resources
+                    );
+                }
             }
         } else {
             debug!(
@@ -357,6 +387,98 @@ fn consume_spawning_resources(
         }
     }
     debug!("consume_spawning_resources returning");
+}
+
+/// Spawn multiple ants for a colony in a batch (optimized version)
+#[instrument(skip(commands, colony_props))]
+fn spawn_ant_batch(
+    commands: &mut Commands,
+    colony_props: &ColonyProperties,
+    colony_position: Vec2,
+    count: i32,
+) -> Vec<Entity> {
+    debug!("running spawn_ant_batch for {} ants", count);
+    let mut spawned_ants = Vec::with_capacity(count as usize);
+    let mut rng = rand::thread_rng();
+    
+    for i in 0..count {
+        // Generate random position near colony center
+        let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
+        let distance = rng.gen::<f32>() * colony_props.radius;
+        let spawn_position = colony_position + Vec2::new(angle.cos(), angle.sin()) * distance;
+
+        debug!(
+            "Batch spawning ant {}/{}: colony_pos=({:.2}, {:.2}), spawn_pos=({:.2}, {:.2}), angle={:.2}, distance={:.2}",
+            i + 1, count, colony_position.x, colony_position.y, spawn_position.x, spawn_position.y, angle, distance
+        );
+
+        let ant_entity = commands.spawn((
+            Ant,
+            AntPhysics {
+                position: spawn_position,
+                velocity: Vec2::ZERO,
+                max_speed: 50.0,
+                acceleration: 100.0,
+                rotation: 0.0,
+                rotation_speed: 2.0,
+                desired_direction: Vec2::new(1.0, 0.0),
+                momentum: 0.95,
+                last_positions: Vec::new(),
+                turn_smoothness: 3.0,
+                wander_angle: 0.0,
+                wander_change: 0.3,
+                obstacle_avoidance_force: Vec2::ZERO,
+            },
+            AntHealth {
+                health: 100.0,
+                max_health: 100.0,
+                energy: 100.0,
+                max_energy: 100.0,
+                age_ticks: 0,
+                lifespan_ticks: 10000,
+            },
+            AntState::Wandering,
+            CarriedResources {
+                resources: HashMap::new(),
+                capacity: 10.0,
+                current_weight: 0.0,
+            },
+            AntTarget::None,
+            AntMemory {
+                known_food_sources: Vec::new(),
+                known_colonies: Vec::new(),
+                last_food_source: None,
+                last_action_tick: 0,
+                pheromone_sensitivity: 1.0,
+                visited_positions: Vec::new(),
+                last_stuck_check: 0,
+                stuck_counter: 0,
+                exploration_radius: 100.0,
+                path_history: Vec::new(),
+            },
+            AntType {
+                name: "Worker".to_string(),
+                role: "worker".to_string(),
+                base_speed: 50.0,
+                base_strength: 10.0,
+                base_health: 100.0,
+                carrying_capacity: 10.0,
+                color_hue: colony_props.color_hue,
+                special_abilities: Vec::new(),
+            },
+            Transform::from_translation(Vec3::new(spawn_position.x, spawn_position.y, 0.0)),
+        )).id();
+
+        spawned_ants.push(ant_entity);
+    }
+
+    debug!(
+        "Batch spawned {} ants successfully with color_hue: {:.2}",
+        spawned_ants.len(), colony_props.color_hue
+    );
+
+    debug!("spawn_ant_batch returning");
+    spawned_ants
 }
 
 /// Spawn a new ant for a colony

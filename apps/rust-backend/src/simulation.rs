@@ -60,6 +60,8 @@ impl AntColonySimulator {
             world_bounds: world_bounds.clone(),
             is_running: true,
             simulation_speed: simulation.simulation_speed.unwrap_or(1) as f32,
+            max_spawn_batch_size: 5, // Spawn up to 5 ants per colony per cycle
+            spawn_tick_interval: 30, // Spawn every 30 ticks (was 100)
         });
 
         app.insert_resource(SimulationStats {
@@ -133,6 +135,8 @@ impl AntColonySimulator {
             world_bounds: world_bounds.clone(),
             is_running: true,
             simulation_speed: 1.0,
+            max_spawn_batch_size: 5, // Spawn up to 5 ants per colony per cycle
+            spawn_tick_interval: 30, // Spawn every 30 ticks (was 100)
         });
 
         app.insert_resource(SimulationStats {

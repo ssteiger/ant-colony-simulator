@@ -149,10 +149,12 @@ fn camera_system(
         let old_scale = projection.scale;
         projection.scale = (projection.scale * zoom_factor).clamp(0.1, 10.0);
         
+        /*
         // Log zoom changes for debugging
         if (old_scale - projection.scale).abs() > 0.001 {
             info!("Zoom changed from {:.2} to {:.2} (wheel delta: {:.2})", old_scale, projection.scale, wheel_event.y);
         }
+        */
     }
     
     // Handle mouse panning (when left mouse button is held)
@@ -166,8 +168,10 @@ fn camera_system(
             camera_transform.translation.x += delta_x;
             camera_transform.translation.y += delta_y;
             
+            /*
             info!("Pan delta: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
                   delta_x, delta_y, camera_transform.translation.x, camera_transform.translation.y);
+            */
         }
     }
     
