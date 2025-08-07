@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use crate::models::*;
-use crate::utils::{WORLD_WIDTH, WORLD_HEIGHT, world_center};
+
 use bevy::asset::AssetServer;
 use bevy::ecs::system::Resource;
 use bevy::input::mouse::{MouseWheel, MouseMotion};
@@ -36,20 +36,24 @@ impl Plugin for RenderingPlugin {
 }
 
 /// Setup rendering components and camera
-fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Use world constants for consistent positioning
-    let (center_x, center_y) = world_center();
+fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>, windows: Query<&Window>) {
+    // Get the window size for proper scaling
+    let window = windows.single();
+    let window_width = window.width();
+    let window_height = window.height();
     
-    // Spawn main game camera at the center of the world
+    // Camera starts at origin (0,0) with the entire window visible
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(center_x, center_y, 1000.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1000.0)),
             camera: Camera {
                 order: 0, // Main camera renders first
                 ..default()
             },
             projection: OrthographicProjection {
                 scale: 1.0,
+                near: -1000.0,
+                far: 1000.0,
                 ..default()
             },
             ..default()
@@ -57,21 +61,21 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>) {
         MainCamera, // Marker component
     ));
 
-    // Add background centered on the world
+    // Add background that fills the entire window
     commands.spawn(SpriteBundle {
         sprite: Sprite {
             color: Color::WHITE, // White background
-            custom_size: Some(Vec2::new(WORLD_WIDTH, WORLD_HEIGHT)),
+            custom_size: Some(Vec2::new(window_width * 2.0, window_height * 2.0)), // Make it larger to prevent edge artifacts
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(center_x, center_y, -1.0)),
+        transform: Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
         ..default()
     });
 
     // Add UI camera
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(center_x, center_y, 1001.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1001.0)),
             camera: Camera {
                 order: 1, // UI camera renders on top
                 ..default()
@@ -129,75 +133,80 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(AntTexture(ant_texture));
     
     // Force asset server to start loading the texture immediately
-    asset_server.load::<Image, _>("ant.png");
+    let _: Handle<Image> = asset_server.load("ant.png");
 }
 
-/// Camera system for following, zooming, and panning
+/// Camera system for zooming and panning
 fn camera_system(
-    mut params: ParamSet<(
-        Query<(&mut Transform, &mut OrthographicProjection), (With<Camera>, With<MainCamera>)>,
-        Query<&Transform, With<Colony>>,
-    )>,
+    mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
     keyboard_input: Res<Input<KeyCode>>,
     mouse_input: Res<Input<MouseButton>>,
     mut mouse_wheel: EventReader<MouseWheel>,
     mut mouse_motion: EventReader<MouseMotion>,
     time: Res<Time>,
+    windows: Query<&Window>,
 ) {
-    // Get colony position first
-    let colony_position = params.p1().get_single().ok().map(|colony_transform| {
-        Vec3::new(
-            colony_transform.translation.x,
-            colony_transform.translation.y,
-            1000.0, // Keep camera at same Z level
-        )
-    });
-    
-    // Then update camera
-    if let Ok((mut camera_transform, mut projection)) = params.p0().get_single_mut() {
+    if let Ok((mut camera_transform, mut projection)) = camera_query.get_single_mut() {
+        let _window = windows.single();
+        
         // Handle mouse wheel zooming
         for wheel_event in mouse_wheel.iter() {
             let zoom_factor = if wheel_event.y > 0.0 { 0.9 } else { 1.1 };
+            let old_scale = projection.scale;
             projection.scale = (projection.scale * zoom_factor).clamp(0.1, 10.0);
-        }
-        
-        // Handle mouse panning (when left mouse button is held and zoomed in)
-        if mouse_input.pressed(MouseButton::Left) && projection.scale < 1.0 {
-            for motion_event in mouse_motion.iter() {
-                // Pan speed should be relative to zoom level
-                let pan_speed = projection.scale * 2.0;
-                camera_transform.translation.x -= motion_event.delta.x * pan_speed;
-                camera_transform.translation.y += motion_event.delta.y * pan_speed; // Y is inverted in screen space
+            
+            // Log zoom changes for debugging
+            if old_scale != projection.scale {
+                info!("Zoom changed from {:.2} to {:.2}", old_scale, projection.scale);
             }
         }
         
-        // Auto-center camera on the first colony found (only when not panning manually)
-        if !mouse_input.pressed(MouseButton::Left) {
-            if let Some(target_position) = colony_position {
-                // Smooth camera movement towards colony center
-                let lerp_factor = 0.02; // Slower lerp when we have manual controls
-                camera_transform.translation = camera_transform.translation.lerp(target_position, lerp_factor);
+        // Handle mouse panning (when left mouse button is held)
+        if mouse_input.pressed(MouseButton::Left) {
+            for motion_event in mouse_motion.iter() {
+                // Pan speed should be relative to zoom level and screen size
+                let pan_speed = projection.scale * 2.0;
+                let delta_x = -motion_event.delta.x * pan_speed;
+                let delta_y = motion_event.delta.y * pan_speed; // Y is inverted in screen space
+                
+                camera_transform.translation.x += delta_x;
+                camera_transform.translation.y += delta_y;
+                
+                info!("Pan delta: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
+                      delta_x, delta_y, camera_transform.translation.x, camera_transform.translation.y);
             }
         }
         
         // Manual camera movement with WASD keys
         let mut movement = Vec3::ZERO;
-        let speed = 200.0 * time.delta_seconds() * projection.scale; // Speed relative to zoom
+        let speed = 400.0 * time.delta_seconds() * projection.scale; // Speed relative to zoom
 
-        if keyboard_input.pressed(KeyCode::W) {
+        if keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up) {
             movement.y += speed;
         }
-        if keyboard_input.pressed(KeyCode::S) {
+        if keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down) {
             movement.y -= speed;
         }
-        if keyboard_input.pressed(KeyCode::A) {
+        if keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left) {
             movement.x -= speed;
         }
-        if keyboard_input.pressed(KeyCode::D) {
+        if keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right) {
             movement.x += speed;
         }
 
-        camera_transform.translation += movement;
+        if movement != Vec3::ZERO {
+            camera_transform.translation += movement;
+            info!("Keyboard movement: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
+                  movement.x, movement.y, camera_transform.translation.x, camera_transform.translation.y);
+        }
+        
+        // Optional: Reset camera to center with R key
+        if keyboard_input.just_pressed(KeyCode::R) {
+            camera_transform.translation.x = 0.0;
+            camera_transform.translation.y = 0.0;
+            projection.scale = 1.0;
+            info!("Camera reset to center (0, 0) with scale 1.0");
+        }
     }
 }
 

@@ -200,11 +200,44 @@ pub struct SimulationState {
     pub simulation_speed: f32,
 }
 
-/// World boundaries
+/// World boundaries - supports both width/height format and min/max coordinate format
 #[derive(Resource, Debug, Clone)]
 pub struct WorldBounds {
     pub width: f32,
     pub height: f32,
+    // Centered coordinate bounds (Bevy's coordinate system)
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_y: f32,
+    pub max_y: f32,
+}
+
+impl WorldBounds {
+    /// Create world bounds centered around origin (for Bevy coordinate system)
+    pub fn centered(width: f32, height: f32) -> Self {
+        let half_width = width / 2.0;
+        let half_height = height / 2.0;
+        Self {
+            width,
+            height,
+            min_x: -half_width,
+            max_x: half_width,
+            min_y: -half_height,
+            max_y: half_height,
+        }
+    }
+    
+    /// Create world bounds starting from origin (legacy format)
+    pub fn from_origin(width: f32, height: f32) -> Self {
+        Self {
+            width,
+            height,
+            min_x: 0.0,
+            max_x: width,
+            min_y: 0.0,
+            max_y: height,
+        }
+    }
 }
 
 /// Simulation statistics

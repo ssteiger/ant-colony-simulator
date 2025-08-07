@@ -224,26 +224,26 @@ fn calculate_boundary_avoidance(position: Vec2, world_bounds: &WorldBounds) -> V
     let buffer = 50.0; // Start avoiding when this close to boundary
     
     // Left boundary
-    if position.x < buffer {
-        let strength = (buffer - position.x) / buffer;
+    if position.x < world_bounds.min_x + buffer {
+        let strength = (world_bounds.min_x + buffer - position.x) / buffer;
         avoidance_force.x += strength * 200.0;
     }
     
     // Right boundary
-    if position.x > world_bounds.width - buffer {
-        let strength = (position.x - (world_bounds.width - buffer)) / buffer;
+    if position.x > world_bounds.max_x - buffer {
+        let strength = (position.x - (world_bounds.max_x - buffer)) / buffer;
         avoidance_force.x -= strength * 200.0;
     }
     
     // Bottom boundary
-    if position.y < buffer {
-        let strength = (buffer - position.y) / buffer;
+    if position.y < world_bounds.min_y + buffer {
+        let strength = (world_bounds.min_y + buffer - position.y) / buffer;
         avoidance_force.y += strength * 200.0;
     }
     
     // Top boundary
-    if position.y > world_bounds.height - buffer {
-        let strength = (position.y - (world_bounds.height - buffer)) / buffer;
+    if position.y > world_bounds.max_y - buffer {
+        let strength = (position.y - (world_bounds.max_y - buffer)) / buffer;
         avoidance_force.y -= strength * 200.0;
     }
     
@@ -290,20 +290,20 @@ fn update_position_history(physics: &mut AntPhysics, memory: &mut AntMemory) {
 /// Enforce world boundaries by keeping ants inside
 fn enforce_world_boundaries(physics: &mut AntPhysics, world_bounds: &WorldBounds) {
     // Hard boundary enforcement
-    if physics.position.x < 0.0 {
-        physics.position.x = 0.0;
+    if physics.position.x < world_bounds.min_x {
+        physics.position.x = world_bounds.min_x;
         physics.velocity.x = physics.velocity.x.abs(); // Bounce off
     }
-    if physics.position.x > world_bounds.width {
-        physics.position.x = world_bounds.width;
+    if physics.position.x > world_bounds.max_x {
+        physics.position.x = world_bounds.max_x;
         physics.velocity.x = -physics.velocity.x.abs(); // Bounce off
     }
-    if physics.position.y < 0.0 {
-        physics.position.y = 0.0;
+    if physics.position.y < world_bounds.min_y {
+        physics.position.y = world_bounds.min_y;
         physics.velocity.y = physics.velocity.y.abs(); // Bounce off
     }
-    if physics.position.y > world_bounds.height {
-        physics.position.y = world_bounds.height;
+    if physics.position.y > world_bounds.max_y {
+        physics.position.y = world_bounds.max_y;
         physics.velocity.y = -physics.velocity.y.abs(); // Bounce off
     }
 }

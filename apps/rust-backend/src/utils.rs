@@ -31,11 +31,24 @@ pub fn angle_between_points(from: (f32, f32), to: (f32, f32)) -> f32 {
 // WORLD CONSTANTS
 // ============================================================================
 
-/// Default world dimensions for the simulation
-pub const WORLD_WIDTH: f32 = 1000.0;
-pub const WORLD_HEIGHT: f32 = 1000.0;
+/// Default window dimensions for the simulation
+pub const DEFAULT_WINDOW_WIDTH: f32 = 1200.0;
+pub const DEFAULT_WINDOW_HEIGHT: f32 = 800.0;
 
-/// Calculate the center of the world
+/// Calculate the center of the window/world (window center is world center)
 pub fn world_center() -> (f32, f32) {
-    (WORLD_WIDTH / 2.0, WORLD_HEIGHT / 2.0)
+    (0.0, 0.0) // Center at origin for proper camera handling
+}
+
+/// Get world bounds that match the window size centered around origin
+/// Bevy uses coordinates where (0,0) is the center of the screen
+pub fn get_world_bounds(window_width: f32, window_height: f32) -> (f32, f32) {
+    (window_width, window_height)
+}
+
+/// Get world bounds as min/max coordinates centered around origin
+pub fn get_centered_world_bounds(window_width: f32, window_height: f32) -> (f32, f32, f32, f32) {
+    let half_width = window_width / 2.0;
+    let half_height = window_height / 2.0;
+    (-half_width, half_width, -half_height, half_height) // (min_x, max_x, min_y, max_y)
 } 

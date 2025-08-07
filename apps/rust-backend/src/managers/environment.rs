@@ -172,14 +172,14 @@ pub fn world_boundaries_system(
     debug!("running world_boundaries_system");
     for mut physics in ants.iter_mut() {
         // Keep ants within world bounds
-        physics.position.x = physics.position.x.clamp(0.0, world_bounds.width);
-        physics.position.y = physics.position.y.clamp(0.0, world_bounds.height);
+        physics.position.x = physics.position.x.clamp(world_bounds.min_x, world_bounds.max_x);
+        physics.position.y = physics.position.y.clamp(world_bounds.min_y, world_bounds.max_y);
         
         // Bounce off boundaries
-        if physics.position.x <= 0.0 || physics.position.x >= world_bounds.width {
+        if physics.position.x <= world_bounds.min_x || physics.position.x >= world_bounds.max_x {
             physics.velocity.x *= -0.5;
         }
-        if physics.position.y <= 0.0 || physics.position.y >= world_bounds.height {
+        if physics.position.y <= world_bounds.min_y || physics.position.y >= world_bounds.max_y {
             physics.velocity.y *= -0.5;
         }
     }
@@ -198,9 +198,9 @@ fn spawn_random_food_source(
     debug!("running spawn_random_food_source");
     let mut rng = rand::thread_rng();
     
-    // Random position
-    let x = rng.gen_range(50.0..world_bounds.width - 50.0);
-    let y = rng.gen_range(50.0..world_bounds.height - 50.0);
+    // Random position within centered world bounds
+    let x = rng.gen_range(world_bounds.min_x + 50.0..world_bounds.max_x - 50.0);
+    let y = rng.gen_range(world_bounds.min_y + 50.0..world_bounds.max_y - 50.0);
     
     // Random food type
     let food_types = vec!["seeds", "sugar", "protein", "fruit"];

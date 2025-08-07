@@ -1,9 +1,10 @@
 use bevy::prelude::*;
+use bevy::window::{Window, WindowPlugin};
 use big_brain::prelude::*;
 use crate::models::*;
 use crate::managers::*;
 use crate::database::DatabaseManager;
-use crate::utils::{WORLD_WIDTH, WORLD_HEIGHT, world_center};
+use crate::utils::{DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, world_center, get_world_bounds};
 use anyhow::Result;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -28,16 +29,23 @@ impl AntColonySimulator {
         // Load simulation data from database
         let simulation = runtime.block_on(db.load_simulation(simulation_id))?;
         
-        let world_bounds = WorldBounds {
-            width: simulation.world_width as f32,
-            height: simulation.world_height as f32,
-        };
+        // Use window dimensions as world bounds for full window coverage
+        let (world_width, world_height) = get_world_bounds(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+        let world_bounds = WorldBounds::centered(world_width, world_height);
 
         // Create Bevy app
         let mut app = App::new();
         
-        // Add default plugins
-        app.add_plugins(DefaultPlugins);
+        // Add default plugins with window configuration
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Ant Colony Simulator".to_string(),
+                resolution: (DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT).into(),
+                present_mode: bevy::window::PresentMode::AutoVsync,
+                ..default()
+            }),
+            ..default()
+        }));
         
         // Set custom clear color to match background
         app.insert_resource(ClearColor(Color::WHITE));
@@ -94,16 +102,23 @@ impl AntColonySimulator {
     pub fn new_test() -> Result<Self> {
         let runtime = Runtime::new()?;
         
-        let world_bounds = WorldBounds {
-            width: WORLD_WIDTH,
-            height: WORLD_HEIGHT,
-        };
+        // Use window dimensions as world bounds for full window coverage
+        let (world_width, world_height) = get_world_bounds(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+        let world_bounds = WorldBounds::centered(world_width, world_height);
 
         // Create Bevy app
         let mut app = App::new();
         
-        // Add default plugins
-        app.add_plugins(DefaultPlugins);
+        // Add default plugins with window configuration
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Ant Colony Simulator (Test Mode)".to_string(),
+                resolution: (DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT).into(),
+                present_mode: bevy::window::PresentMode::AutoVsync,
+                ..default()
+            }),
+            ..default()
+        }));
         
         // Set custom clear color to match background
         app.insert_resource(ClearColor(Color::WHITE));
@@ -157,8 +172,8 @@ impl AntColonySimulator {
     }
 
     fn add_test_entities(app: &mut App) {
-        // Use world constants for consistent positioning
-        let (center_x, center_y) = world_center();
+        // Place entities relative to window center (0,0)
+        let (center_x, center_y) = world_center(); // This is now (0,0)
         
         // Add a test colony at the center of the screen
         app.world.spawn((
@@ -167,10 +182,10 @@ impl AntColonySimulator {
                 name: "Test Colony".to_string(),
                 center: Vec2::new(center_x, center_y),
                 radius: 50.0,
-                population: 10,
-                max_population: 100,
+                population: 100,
+                max_population: 1000,
                 color_hue: 0.0,
-                territory_radius: 200.0,
+                territory_radius: 1000.0,
                 aggression_level: 0.5,
             },
             ColonyResources {
@@ -185,79 +200,104 @@ impl AntColonySimulator {
             Transform::from_translation(Vec3::new(center_x, center_y, 0.0)),
         ));
 
-        // Add a test food source near the center
-        app.world.spawn((
-            FoodSource,
-            FoodSourceProperties {
-                food_type: "berries".to_string(),
-                amount: 100.0,
-                max_amount: 100.0,
-                regeneration_rate: 0.1,
-                is_renewable: true,
-                nutritional_value: 10.0,
-                spoilage_rate: 0.01,
-                discovery_difficulty: 0.5,
-            },
-            Transform::from_translation(Vec3::new(center_x + 150.0, center_y + 150.0, 0.0)),
-        ));
+        // Add test food sources around the center in a visible pattern
+        let food_positions = [
+            (150.0, 150.0),   // Top-right
+            (-150.0, 150.0),  // Top-left
+            (150.0, -150.0),  // Bottom-right
+            (-150.0, -150.0), // Bottom-left
+            (200.0, 0.0),     // Right
+            (-200.0, 0.0),    // Left
+        ];
 
-        // Add a test ant at the center
-        app.world.spawn((
-            Ant,
-            AntPhysics {
-                position: Vec2::new(center_x, center_y),
-                velocity: Vec2::ZERO,
-                max_speed: 50.0,
-                acceleration: 100.0,
-                rotation: 0.0,
-                rotation_speed: 2.0,
-                desired_direction: Vec2::new(1.0, 0.0),
-                momentum: 0.95,
-                last_positions: Vec::new(),
-                turn_smoothness: 3.0,
-                wander_angle: 0.0,
-                wander_change: 0.3,
-                obstacle_avoidance_force: Vec2::ZERO,
-            },
-            AntHealth {
-                health: 100.0,
-                max_health: 100.0,
-                energy: 100.0,
-                max_energy: 100.0,
-                age_ticks: 0,
-                lifespan_ticks: 10000,
-            },
-            AntState::Wandering,
-            CarriedResources {
-                resources: HashMap::new(),
-                capacity: 50.0,
-                current_weight: 0.0,
-            },
-            AntTarget::None,
-            AntMemory {
-                known_food_sources: Vec::new(),
-                known_colonies: Vec::new(),
-                last_food_source: None,
-                last_action_tick: 0,
-                pheromone_sensitivity: 0.5,
-                visited_positions: Vec::new(),
-                last_stuck_check: 0,
-                stuck_counter: 0,
-                exploration_radius: 100.0,
-                path_history: Vec::new(),
-            },
-            AntType {
-                name: "Worker".to_string(),
-                role: "worker".to_string(),
-                base_speed: 50.0,
-                base_strength: 10.0,
-                base_health: 100.0,
-                carrying_capacity: 50.0,
-                color_hue: 0.0,
-                special_abilities: Vec::new(),
-            },
-            Transform::from_translation(Vec3::new(center_x, center_y, 0.0)),
-        ));
+        for (i, (offset_x, offset_y)) in food_positions.iter().enumerate() {
+            let food_type = match i % 4 {
+                0 => "berries",
+                1 => "leaves", 
+                2 => "seeds",
+                _ => "nuts",
+            };
+            
+            app.world.spawn((
+                FoodSource,
+                FoodSourceProperties {
+                    food_type: food_type.to_string(),
+                    amount: 100.0,
+                    max_amount: 100.0,
+                    regeneration_rate: 0.1,
+                    is_renewable: true,
+                    nutritional_value: 10.0,
+                    spoilage_rate: 0.01,
+                    discovery_difficulty: 0.5,
+                },
+                Transform::from_translation(Vec3::new(center_x + offset_x, center_y + offset_y, 0.0)),
+            ));
+        }
+
+        // Add test ants scattered around the center
+        for i in 0..5 {
+            let angle = (i as f32) * 2.0 * std::f32::consts::PI / 5.0;
+            let radius = 75.0;
+            let x = center_x + angle.cos() * radius;
+            let y = center_y + angle.sin() * radius;
+            
+            app.world.spawn((
+                Ant,
+                AntPhysics {
+                    position: Vec2::new(x, y),
+                    velocity: Vec2::ZERO,
+                    max_speed: 50.0,
+                    acceleration: 100.0,
+                    rotation: angle,
+                    rotation_speed: 2.0,
+                    desired_direction: Vec2::new(angle.cos(), angle.sin()),
+                    momentum: 0.95,
+                    last_positions: Vec::new(),
+                    turn_smoothness: 3.0,
+                    wander_angle: angle,
+                    wander_change: 0.3,
+                    obstacle_avoidance_force: Vec2::ZERO,
+                },
+                AntHealth {
+                    health: 100.0,
+                    max_health: 100.0,
+                    energy: 100.0,
+                    max_energy: 100.0,
+                    age_ticks: 0,
+                    lifespan_ticks: 10000,
+                },
+                AntState::Wandering,
+                CarriedResources {
+                    resources: HashMap::new(),
+                    capacity: 50.0,
+                    current_weight: 0.0,
+                },
+                AntTarget::None,
+                AntMemory {
+                    known_food_sources: Vec::new(),
+                    known_colonies: Vec::new(),
+                    last_food_source: None,
+                    last_action_tick: 0,
+                    pheromone_sensitivity: 0.5,
+                    visited_positions: Vec::new(),
+                    last_stuck_check: 0,
+                    stuck_counter: 0,
+                    exploration_radius: 100.0,
+                    path_history: Vec::new(),
+                },
+                AntType {
+                    name: "Worker".to_string(),
+                    role: "worker".to_string(),
+                    base_speed: 50.0,
+                    base_strength: 10.0,
+                    base_health: 100.0,
+                    carrying_capacity: 50.0,
+                    color_hue: 0.0,
+                    special_abilities: Vec::new(),
+                },
+                Transform::from_translation(Vec3::new(x, y, 0.0)),
+            ));
+        }
     }
 
     fn load_initial_data(
