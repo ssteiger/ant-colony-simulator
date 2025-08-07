@@ -4,14 +4,12 @@ use crate::models::*;
 use bevy::asset::AssetServer;
 use bevy::ecs::system::Resource;
 use bevy::input::mouse::{MouseWheel, MouseMotion};
+use bevy::render::camera::RenderTarget;
+use bevy::window::WindowRef;
 
 /// Marker component for the main game camera
 #[derive(Component)]
 pub struct MainCamera;
-
-/// Marker component for the UI camera
-#[derive(Component)]
-pub struct UiCamera;
 
 /// Resource to store the ant texture handle
 #[derive(Resource, Clone)]
@@ -42,12 +40,13 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>, windo
     let window_width = window.width();
     let window_height = window.height();
     
-    // Camera starts at origin (0,0) with the entire window visible
+    // Main game camera - this is the camera that will be controlled
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1000.0)),
+            transform: Transform::from_xyz(0.0, 0.0, 0.0), // Start at world origin
             camera: Camera {
                 order: 0, // Main camera renders first
+                target: RenderTarget::Window(WindowRef::Primary),
                 ..default()
             },
             projection: OrthographicProjection {
@@ -72,26 +71,15 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>, windo
         ..default()
     });
 
-    // Add UI camera
-    commands.spawn((
-        Camera2dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1001.0)),
-            camera: Camera {
-                order: 1, // UI camera renders on top
-                ..default()
-            },
-            ..default()
-        },
-        UiCamera, // Marker component
-    ));
-
-    // Add UI root
+    // Add UI root - this will use the same camera
     commands.spawn(NodeBundle {
         style: Style {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
+            position_type: PositionType::Absolute,
             ..default()
         },
+        z_index: ZIndex::Global(1000), // Ensure UI is on top
         ..default()
     }).with_children(|parent| {
         // Stats panel
@@ -103,7 +91,8 @@ fn setup_rendering(mut commands: Commands, asset_server: Res<AssetServer>, windo
                 padding: UiRect::all(Val::Px(10.0)),
                 ..default()
             },
-            background_color: Color::WHITE.into(),
+            background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+            z_index: ZIndex::Local(1),
             ..default()
         }).with_children(|parent| {
             parent.spawn(TextBundle::from_section(
@@ -146,67 +135,71 @@ fn camera_system(
     time: Res<Time>,
     windows: Query<&Window>,
 ) {
-    if let Ok((mut camera_transform, mut projection)) = camera_query.get_single_mut() {
-        let _window = windows.single();
+    let Ok((mut camera_transform, mut projection)) = camera_query.get_single_mut() else {
+        warn!("Camera system: No main camera found!");
+        return;
+    };
+    
+    let _window = windows.single();
+    
+    // Handle mouse wheel zooming
+    for wheel_event in mouse_wheel.iter() {
+        let zoom_delta = wheel_event.y * 0.1; // Scale the zoom speed
+        let zoom_factor = if zoom_delta > 0.0 { 0.9 } else { 1.1 };
+        let old_scale = projection.scale;
+        projection.scale = (projection.scale * zoom_factor).clamp(0.1, 10.0);
         
-        // Handle mouse wheel zooming
-        for wheel_event in mouse_wheel.iter() {
-            let zoom_factor = if wheel_event.y > 0.0 { 0.9 } else { 1.1 };
-            let old_scale = projection.scale;
-            projection.scale = (projection.scale * zoom_factor).clamp(0.1, 10.0);
+        // Log zoom changes for debugging
+        if (old_scale - projection.scale).abs() > 0.001 {
+            info!("Zoom changed from {:.2} to {:.2} (wheel delta: {:.2})", old_scale, projection.scale, wheel_event.y);
+        }
+    }
+    
+    // Handle mouse panning (when left mouse button is held)
+    if mouse_input.pressed(MouseButton::Left) {
+        for motion_event in mouse_motion.iter() {
+            // Pan speed should be relative to zoom level
+            let pan_speed = projection.scale * 1.0;
+            let delta_x = -motion_event.delta.x * pan_speed;
+            let delta_y = motion_event.delta.y * pan_speed; // Y is inverted in screen space
             
-            // Log zoom changes for debugging
-            if old_scale != projection.scale {
-                info!("Zoom changed from {:.2} to {:.2}", old_scale, projection.scale);
-            }
+            camera_transform.translation.x += delta_x;
+            camera_transform.translation.y += delta_y;
+            
+            info!("Pan delta: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
+                  delta_x, delta_y, camera_transform.translation.x, camera_transform.translation.y);
         }
-        
-        // Handle mouse panning (when left mouse button is held)
-        if mouse_input.pressed(MouseButton::Left) {
-            for motion_event in mouse_motion.iter() {
-                // Pan speed should be relative to zoom level and screen size
-                let pan_speed = projection.scale * 2.0;
-                let delta_x = -motion_event.delta.x * pan_speed;
-                let delta_y = motion_event.delta.y * pan_speed; // Y is inverted in screen space
-                
-                camera_transform.translation.x += delta_x;
-                camera_transform.translation.y += delta_y;
-                
-                info!("Pan delta: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
-                      delta_x, delta_y, camera_transform.translation.x, camera_transform.translation.y);
-            }
-        }
-        
-        // Manual camera movement with WASD keys
-        let mut movement = Vec3::ZERO;
-        let speed = 400.0 * time.delta_seconds() * projection.scale; // Speed relative to zoom
+    }
+    
+    // Manual camera movement with WASD keys
+    let mut movement = Vec3::ZERO;
+    let speed = 400.0 * time.delta_seconds() * projection.scale; // Speed relative to zoom
 
-        if keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up) {
-            movement.y += speed;
-        }
-        if keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down) {
-            movement.y -= speed;
-        }
-        if keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left) {
-            movement.x -= speed;
-        }
-        if keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right) {
-            movement.x += speed;
-        }
+    if keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up) {
+        movement.y += speed;
+    }
+    if keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down) {
+        movement.y -= speed;
+    }
+    if keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left) {
+        movement.x -= speed;
+    }
+    if keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right) {
+        movement.x += speed;
+    }
 
-        if movement != Vec3::ZERO {
-            camera_transform.translation += movement;
-            info!("Keyboard movement: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
-                  movement.x, movement.y, camera_transform.translation.x, camera_transform.translation.y);
-        }
-        
-        // Optional: Reset camera to center with R key
-        if keyboard_input.just_pressed(KeyCode::R) {
-            camera_transform.translation.x = 0.0;
-            camera_transform.translation.y = 0.0;
-            projection.scale = 1.0;
-            info!("Camera reset to center (0, 0) with scale 1.0");
-        }
+    if movement != Vec3::ZERO {
+        camera_transform.translation += movement;
+        info!("Keyboard movement: ({:.1}, {:.1}), Camera position: ({:.0}, {:.0})", 
+              movement.x, movement.y, camera_transform.translation.x, camera_transform.translation.y);
+    }
+    
+    // Optional: Reset camera to center with R key
+    if keyboard_input.just_pressed(KeyCode::R) {
+        camera_transform.translation.x = 0.0;
+        camera_transform.translation.y = 0.0;
+        projection.scale = 1.0;
+        info!("Camera reset to center (0, 0) with scale 1.0");
     }
 }
 
