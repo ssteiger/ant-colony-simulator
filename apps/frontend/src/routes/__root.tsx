@@ -6,33 +6,23 @@ import {
   ScriptOnce,
   Scripts,
 } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 
 import appCss from '~/lib/styles/app.css?url'
-import { getSupabaseServerClient } from '~/lib/utils/supabase/server'
-
-const getUser = createServerFn({ method: 'GET' }).handler(async () => {
-  const supabase = getSupabaseServerClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  return user || null
-})
+import { getSession } from '~/lib/auth-server'
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
-  user: Awaited<ReturnType<typeof getUser>>
+  user: Awaited<ReturnType<typeof getSession>>
 }>()({
   beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.fetchQuery({
-      queryKey: ['user'],
-      queryFn: () => getUser(),
-    }) // we're using react-query for caching, see router.tsx
-    return { user }
+    const session = await context.queryClient.ensureQueryData({
+      queryKey: ['session'],
+      queryFn: () => getSession(),
+      staleTime: 1000 * 60 * 5,
+    })
+    return { user: session }
   },
   head: () => ({
     meta: [
@@ -44,7 +34,7 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Ant Colony Simulation',
+        title: 'Ant Colony Simulator',
       },
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
@@ -62,7 +52,6 @@ function RootComponent() {
 
 function RootDocument({ children }: { readonly children: React.ReactNode }) {
   return (
-    // suppress since we're updating the "dark" class in a custom script below
     <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />

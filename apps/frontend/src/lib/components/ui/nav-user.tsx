@@ -1,12 +1,11 @@
 import {
   BellIcon,
-  CreditCardIcon,
   DatabaseIcon,
+  FingerprintIcon,
   LogOutIcon,
   MoreVerticalIcon,
-  UserCircleIcon,
 } from 'lucide-react'
-import { redirect } from '@tanstack/react-router'
+import { useRouter } from '@tanstack/react-router'
 
 import { Avatar, AvatarFallback, AvatarImage } from '~/lib/components/ui/avatar'
 import {
@@ -24,26 +23,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '~/lib/components/ui/sidebar'
-import { getSupabaseServerClient } from '~/lib/utils/supabase/server'
-import { createServerFn } from '@tanstack/react-start'
 import { toast } from 'sonner'
 import { useMutation } from '@tanstack/react-query'
-
-const logoutFn = createServerFn().handler(async () => {
-  const supabase = getSupabaseServerClient()
-  const { error } = await supabase.auth.signOut()
-
-  if (error) {
-    return {
-      error: true,
-      message: error.message,
-    }
-  }
-
-  throw redirect({
-    href: '/auth/login',
-  })
-})
+import { authClient } from '~/lib/auth-client'
 
 export function NavUser({
   user,
@@ -55,11 +37,29 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+
+  const addPasskeyMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await authClient.passkey.addPasskey()
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      toast.success('Passkey added successfully')
+    },
+    onError: (error) => {
+      toast.error(`Failed to add passkey: ${error.message}`)
+    },
+  })
 
   const logOutMutation = useMutation({
-    mutationFn: logoutFn,
+    mutationFn: async () => {
+      const { error } = await authClient.signOut()
+      if (error) throw new Error(error.message)
+    },
     onSuccess: () => {
       toast.success('Logout successful')
+      router.navigate({ to: '/auth/login' })
     },
     onError: (error) => {
       toast.error(`Logout failed: ${error.message}`)
@@ -106,13 +106,12 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <UserCircleIcon />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                Billing
+              <DropdownMenuItem
+                onClick={() => addPasskeyMutation.mutate()}
+                disabled={addPasskeyMutation.isPending}
+              >
+                <FingerprintIcon />
+                {addPasskeyMutation.isPending ? 'Adding Passkey ...' : 'Add Passkey'}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <BellIcon />
@@ -130,7 +129,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => logOutMutation.mutateAsync()}>
+            <DropdownMenuItem onClick={() => logOutMutation.mutate()}>
               <LogOutIcon />
               Log out
             </DropdownMenuItem>

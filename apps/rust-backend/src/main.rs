@@ -1,145 +1,110 @@
-use ant_colony_simulator::{AntColonySimulator};
-use anyhow::Result;
-use clap::Parser;
-use sqlx::postgres::PgPoolOptions;
-use tracing::{info, Level};
-use tracing_subscriber::{EnvFilter, fmt};
+mod config;
+mod db;
+mod server;
+mod simulation;
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Simulation ID to run
-    #[arg(short, long)]
-    simulation_id: Option<i32>,
-    
-    /// Database URL
-    #[arg(short, long)]
-    database_url: Option<String>,
-    
-    /// Log level (trace, debug, info, warn, error)
-    #[arg(short, long, default_value = "info")]
-    log_level: String,
-    
-    /// Test mode - run without database
-    #[arg(short, long)]
-    test: bool,
-}
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
-fn main() -> Result<()> {
-    // Set environment variables to suppress libEGL warnings on macOS
-    std::env::set_var("WGPU_BACKEND", "metal");
-    std::env::set_var("WGPU_POWER_PREFERENCE", "high_performance");
-    
-    let args = Args::parse();
+use config::SimConfig;
+use simulation::ant::AntState;
+use simulation::SimulationState;
 
-    // Initialize logging
-    let log_level = match args.log_level.to_lowercase().as_str() {
-        "trace" => Level::TRACE,
-        "debug" => Level::DEBUG,
-        "info" => Level::INFO,
-        "warn" => Level::WARN,
-        "error" => Level::ERROR,
-        _ => Level::INFO,
-    };
-
-    // Configure tracing to filter out wgpu buffer creation logs
+fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::from_default_env()
-                .add_directive("wgpu=warn".parse().unwrap())
-                .add_directive("wgpu_core=warn".parse().unwrap())
-                .add_directive("wgpu_hal=warn".parse().unwrap())
-                .add_directive("bevy_render=warn".parse().unwrap())
-                .add_directive("bevy_wgpu=warn".parse().unwrap())
-                .add_directive(format!("ant_colony_simulator={}", log_level.to_string().to_lowercase()).parse().unwrap())
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("simulator=info".parse().unwrap()),
         )
         .with_target(false)
-        .with_thread_ids(false)
-        .with_line_number(true)
         .init();
 
-    info!("🚀 Starting Ant Colony Simulator (Bevy + Big Brain Backend)");
-    info!("📊 Log level: {}", log_level);
+    let config = SimConfig::default();
+    tracing::info!(
+        "world={}x{} ants={} food_sources={} tick_rate={}",
+        config.world_width,
+        config.world_height,
+        config.initial_ant_count,
+        config.food_source_count,
+        config.tick_rate,
+    );
 
-    if args.test {
-        info!("🧪 Running in test mode - no database required");
-        
-        // Create a simple test simulation without database
-        let mut simulator = AntColonySimulator::new_test()?;
-        
-        info!("🎮 Starting test simulation...");
-        if let Err(e) = simulator.start() {
-            tracing::error!("Bevy simulation error: {}", e);
-        }
-        
-        info!("✅ Test completed successfully!");
-        return Ok(());
-    }
+    let sim = Arc::new(Mutex::new(SimulationState::new(config.clone())));
+    let broadcast_tx = server::create_broadcast();
 
-    // Get database URL from argument or environment variable
-    let database_url = args.database_url
-        .or_else(|| std::env::var("DATABASE_URL").ok())
-        .ok_or_else(|| anyhow::anyhow!("DATABASE_URL must be provided either as argument or environment variable"))?;
+    // simulation thread: tick at 60Hz, broadcast snapshot at ~20Hz
+    let sim_handle = {
+        let sim = Arc::clone(&sim);
+        let tx = broadcast_tx.clone();
+        let tick_rate = config.tick_rate;
+        let broadcast_interval = 3u64; // broadcast every N ticks (60/3 = 20Hz)
 
-    // Create a simple runtime for database operations
-    let rt = tokio::runtime::Runtime::new()?;
-    
-    // Connect to database
-    info!("🔌 Connecting to database...");
-    let pool = rt.block_on(PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&database_url))?;
+        std::thread::spawn(move || {
+            let tick_duration = Duration::from_secs_f64(1.0 / tick_rate as f64);
+            let mut last_log = Instant::now();
 
-    info!("✅ Database connection established");
+            loop {
+                let frame_start = Instant::now();
 
-    // Get simulation ID
-    let simulation_id = if let Some(id) = args.simulation_id {
-        id
-    } else {
-        info!("🔍 No simulation ID provided, looking for active simulation...");
-        
-        let active_simulation: Option<(i32,)> = rt.block_on(sqlx::query_as(
-            "SELECT id FROM simulations WHERE is_active = true ORDER BY created_at DESC LIMIT 1"
-        )
-        .fetch_optional(&pool))?;
+                let mut sim = sim.lock().unwrap();
+                sim.tick();
 
-        match active_simulation {
-            Some((id,)) => {
-                info!("🎯 Found active simulation: {}", id);
-                id
+                // broadcast snapshot to WebSocket clients
+                if sim.tick_count % broadcast_interval == 0 {
+                    let has_subscribers = tx.receiver_count() > 0;
+                    if has_subscribers {
+                        let msg = if sim.tick_count % (broadcast_interval * 20) == 0 {
+                            sim.full_snapshot(1)
+                        } else {
+                            sim.delta_snapshot(1)
+                        };
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            let _ = tx.send(json);
+                        }
+                    }
+                }
+
+                // log stats every second
+                if last_log.elapsed() >= Duration::from_secs(1) {
+                    let foraging = sim
+                        .ants
+                        .state
+                        .iter()
+                        .filter(|&&s| s == AntState::Foraging)
+                        .count();
+                    let returning = sim.ants.count - foraging;
+                    let colony_food: f32 = sim.colonies.iter().map(|c| c.food_stored).sum();
+                    let remaining_food: f32 = sim.food_sources.iter().map(|f| f.amount).sum();
+
+                    tracing::info!(
+                        "tick={:<6} ants={} foraging={} returning={} collected={:.0} colony_food={:.0} world_food={:.0}",
+                        sim.tick_count,
+                        sim.ants.count,
+                        foraging,
+                        returning,
+                        sim.total_food_collected,
+                        colony_food,
+                        remaining_food,
+                    );
+                    last_log = Instant::now();
+                }
+
+                drop(sim);
+
+                let elapsed = frame_start.elapsed();
+                if elapsed < tick_duration {
+                    std::thread::sleep(tick_duration - elapsed);
+                }
             }
-            None => {
-                return Err(anyhow::anyhow!(
-                    "No active simulation found. Please provide a simulation ID or create a simulation first."
-                ));
-            }
-        }
+        })
     };
 
-    // Create and start Bevy simulator
-    info!("🎮 Initializing Bevy simulation: {}", simulation_id);
-    let mut simulator = AntColonySimulator::new(pool, simulation_id)?;
+    // tokio runtime for the WebSocket server
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        server::start_server("0.0.0.0:8080", broadcast_tx).await
+    })?;
 
-    // Handle graceful shutdown with Ctrl+C
-    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
-    
-    // Spawn a thread to handle Ctrl+C
-    std::thread::spawn(move || {
-        ctrlc::set_handler(move || {
-            info!("🛑 Received Ctrl+C, shutting down gracefully...");
-            let _ = shutdown_tx.send(());
-        }).expect("Error setting Ctrl-C handler");
-    });
-
-    // Start the simulation
-    info!("🎮 Starting Bevy simulation...");
-    if let Err(e) = simulator.start() {
-        tracing::error!("Bevy simulation error: {}", e);
-    }
-
-    // Wait for shutdown signal
-    let _ = shutdown_rx.recv();
-    
-    info!("👋 Goodbye!");
+    sim_handle.join().unwrap();
     Ok(())
-} 
+}

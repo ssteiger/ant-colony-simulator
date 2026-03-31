@@ -4,108 +4,70 @@ import { createServerFn } from '@tanstack/react-start'
 import { postgres_db, schema } from '@ant-colony-simulator/db-drizzle'
 import { Button } from '~/lib/components/ui/button'
 import { CreateSimulationButton } from '../-components/create-simulation-button'
-import type { Simulation } from '~/types/drizzle'
 
-const getAllSimulations = createServerFn({ method: 'GET' })
-  .handler(async () => {
+const getAllSimulations = createServerFn({ method: 'GET' }).handler(
+  async () => {
     try {
-      const simulations = await postgres_db
-        .select({
-          id: schema.simulations.id,
-          name: schema.simulations.name,
-          description: schema.simulations.description,
-          world_width: schema.simulations.world_width,
-          world_height: schema.simulations.world_height,
-          current_tick: schema.simulations.current_tick,
-          is_active: schema.simulations.is_active,
-          season: schema.simulations.season,
-          weather_type: schema.simulations.weather_type,
-          created_at: schema.simulations.created_at,
-          updated_at: schema.simulations.updated_at
-        })
+      return await postgres_db
+        .select()
         .from(schema.simulations)
-        .orderBy(schema.simulations.updated_at)
-
-      // Ensure dates are never null by providing fallback values
-      return simulations.map(sim => ({
-        ...sim,
-        created_at: sim.created_at || new Date().toISOString(),
-        updated_at: sim.updated_at || new Date().toISOString()
-      }))
+        .orderBy(schema.simulations.created_at)
     } catch (error) {
       console.error('Database error:', error)
       return []
     }
-  })
+  },
+)
 
-const SimulationCard = ({ simulation }: { simulation: Simulation }) => {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+function SimulationCard({
+  simulation,
+}: {
+  simulation: {
+    id: number
+    name: string
+    world_width: number
+    world_height: number
+    is_active: boolean | null
+    created_at: string | null
   }
-
+}) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">
-              {simulation.name}
-            </h3>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                simulation.is_active 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {simulation.is_active ? 'Active' : 'Inactive'}
-              </span>
-              <span className="text-xs text-gray-500">
-                Tick: {(simulation.current_tick || 0).toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {simulation.description && (
-          <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-            {simulation.description}
-          </p>
-        )}
-
-        <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-          <div>
-            <span className="text-gray-500">World Size:</span>
-            <p className="font-medium">{simulation.world_width} × {simulation.world_height}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Environment:</span>
-            <p className="font-medium capitalize">
-              {simulation.season} • {simulation.weather_type}
-            </p>
-          </div>
-        </div>
-
-        <div className="text-xs text-gray-500 mb-4">
-          <p>Created: {formatDate(simulation.created_at)}</p>
-          <p>Updated: {formatDate(simulation.updated_at)}</p>
-        </div>
-
-        <div className="flex gap-2">
-          <Link
-            to="/simulation/$id"
-            params={{ id: simulation.id }}
-            className="flex-1 bg-black text-white text-sm px-4 py-2 rounded-md hover:bg-gray-800 transition-colors text-center"
-          >
-            View Simulation
-          </Link>
-        </div>
+    <div className="rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <h3 className="text-lg font-semibold">{simulation.name}</h3>
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+            simulation.is_active
+              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {simulation.is_active ? 'Active' : 'Inactive'}
+        </span>
       </div>
+
+      <p className="text-sm text-muted-foreground mb-4">
+        {simulation.world_width} x {simulation.world_height} world
+      </p>
+
+      {simulation.created_at && (
+        <p className="text-xs text-muted-foreground mb-4">
+          Created{' '}
+          {new Date(simulation.created_at).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })}
+        </p>
+      )}
+
+      <Link
+        to="/simulation/$id"
+        params={{ id: String(simulation.id) }}
+        className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+      >
+        Open Simulation
+      </Link>
     </div>
   )
 }
@@ -115,27 +77,24 @@ function RouteComponent() {
     data: simulations,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery({
     queryKey: ['all-simulations'],
     queryFn: () => getAllSimulations(),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   })
 
   return (
     <div className="flex-1 space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Manage and monitor your ant colony simulations
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your ant colony simulations
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            type="button"
-            onClick={() => refetch()}
-          >
+          <Button type="button" variant="outline" onClick={() => refetch()}>
             Refresh
           </Button>
           <CreateSimulationButton />
@@ -143,54 +102,40 @@ function RouteComponent() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-red-800">
-            Error loading simulations. Please try again.
+        <div className="rounded-md border border-red-200 bg-red-50 p-4 dark:bg-red-900/20 dark:border-red-800">
+          <p className="text-red-800 dark:text-red-400">
+            Error loading simulations.
           </p>
         </div>
       )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }, (_, i) => `skeleton-${i}`).map((key) => (
-            <div key={key} className="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
-              <div className="h-3 bg-gray-200 rounded w-1/2 mb-2" />
-              <div className="h-3 bg-gray-200 rounded w-2/3 mb-4" />
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="h-3 bg-gray-200 rounded" />
-                <div className="h-3 bg-gray-200 rounded" />
-              </div>
-              <div className="h-8 bg-gray-200 rounded" />
+          {Array.from({ length: 3 }, (_, i) => (
+            <div
+              key={`skel-${i}`}
+              className="rounded-lg border bg-card p-6 animate-pulse"
+            >
+              <div className="h-4 bg-muted rounded w-3/4 mb-4" />
+              <div className="h-3 bg-muted rounded w-1/2 mb-4" />
+              <div className="h-9 bg-muted rounded" />
             </div>
           ))}
         </div>
       ) : simulations && simulations.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {simulations.map((simulation) => (
-              <SimulationCard key={simulation.id} simulation={simulation} />
-            ))}
-          </div>
-          
-          <div className="text-center text-gray-500 mt-8">
-            <p>{simulations.length} simulation{simulations.length === 1 ? '' : 's'} found</p>
-          </div>
-        </>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {simulations.map((sim) => (
+            <SimulationCard key={sim.id} simulation={sim} />
+          ))}
+        </div>
       ) : (
-        <div className="text-center py-12">
-          <div className="max-w-md mx-auto">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Empty state illustration">
-              <title>No simulations found</title>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No simulations</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Get started by creating your first ant colony simulation.
-            </p>
-            <div className="mt-6">
+        <div className="text-center py-16">
+          <h3 className="text-sm font-medium">No simulations yet</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create your first ant colony simulation to get started.
+          </p>
+          <div className="mt-6">
             <CreateSimulationButton />
-            </div>
           </div>
         </div>
       )}
