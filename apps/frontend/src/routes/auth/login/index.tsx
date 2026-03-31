@@ -16,7 +16,8 @@ const LoginPage = () => {
         Register
       </Link>
       <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
-        <div className="absolute inset-0 bg-zinc-900" />
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/cover.png)' }} />
+        <div className="absolute inset-0 bg-black/40" />
         <div className="relative z-20 flex items-center text-lg font-medium">
           Ant Colony Simulator
         </div>

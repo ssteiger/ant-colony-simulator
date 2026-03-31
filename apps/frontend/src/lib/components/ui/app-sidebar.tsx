@@ -1,15 +1,8 @@
 import {
-  ClipboardListIcon,
-  DatabaseIcon,
-  FileIcon,
-  HelpCircleIcon,
-  LayoutDashboardIcon,
-  MapIcon,
-  PlayIcon,
-  SearchIcon,
-  SettingsIcon,
   BarChart3Icon,
-  BugIcon,
+  LayoutDashboardIcon,
+  PlayIcon,
+  SettingsIcon,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
@@ -22,72 +15,22 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '~/lib/components/ui/sidebar'
-import { NavDocuments } from '~/lib/components/ui/nav-documents'
 import { NavMain } from '~/lib/components/ui/nav-main'
 import { NavSecondary } from '~/lib/components/ui/nav-secondary'
 import { NavUser } from '~/lib/components/ui/nav-user'
 
-interface NavigationItem {
-  href: string
-  label: string
-}
+const navMain = [
+  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboardIcon },
+  { title: 'Simulations', url: '/simulation', icon: PlayIcon },
+  { title: 'Analytics', url: '/analytics', icon: BarChart3Icon },
+]
+
+const navSecondary = [
+  { title: 'Settings', url: '/settings', icon: SettingsIcon },
+]
 
 interface AppSidebarProps {
   variant?: 'inset' | 'sidebar' | 'floating'
-  navigationItems?: NavigationItem[]
-}
-
-const data = {
-  user: {
-    name: 'Researcher',
-    email: 'researcher@antlab.com',
-    avatar: '/avatars/researcher.jpg',
-  },
-  navMain: [
-    {
-      title: 'Dashboard',
-      url: '/dashboard',
-      icon: LayoutDashboardIcon,
-    },
-    {
-      title: 'Simulation',
-      url: '/simulation',
-      icon: PlayIcon,
-    },
-    {
-      title: 'Colonies',
-      url: '/colonies',
-      icon: BugIcon,
-    },
-    {
-      title: 'Environment',
-      url: '/environment',
-      icon: MapIcon,
-    },
-    {
-      title: 'Analytics',
-      url: '/analytics',
-      icon: BarChart3Icon,
-    },
-  ],
-  navSecondary: [
-    {
-      title: 'Settings',
-      url: '/settings',
-      icon: SettingsIcon,
-    },
-    {
-      title: 'Help & Documentation',
-      url: '/help',
-      icon: HelpCircleIcon,
-    },
-    {
-      title: 'Search',
-      url: '/search',
-      icon: SearchIcon,
-    },
-  ],
-  tools: [],
 }
 
 export function AppSidebar({ variant = 'inset' }: AppSidebarProps) {
@@ -97,7 +40,7 @@ export function AppSidebar({ variant = 'inset' }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
-              <Link to="/home">
+              <Link to="/dashboard">
                 <span className="text-base font-semibold">Ant Colony Simulator</span>
               </Link>
             </SidebarMenuButton>
@@ -105,12 +48,11 @@ export function AppSidebar({ variant = 'inset' }: AppSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.tools} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={navMain} />
+        <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={{ name: 'User', email: '', avatar: '' }} />
       </SidebarFooter>
     </Sidebar>
   )
