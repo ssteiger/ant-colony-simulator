@@ -2,7 +2,7 @@
 
 A real-time ant colony simulation: a Rust backend simulates up to 50,000+ ants at 60 ticks/s on procedurally generated terrain, streams state to the browser over a binary WebSocket protocol, and persists checkpoints to Postgres so simulations survive restarts.
 
-| Before | After |
+| Claude 4.6 and before | Claude Fable 5 High (one-shot) |
 | ------ | ----- |
 | ![Before: Canvas 2D, ~50 ants](apps/frontend/public/screenshots/claude-opus-4.6.jpg) | ![After: PixiJS WebGL, 50,000 ants on generated terrain](apps/frontend/public/screenshots/claude-fable-5-high.png) |
 
