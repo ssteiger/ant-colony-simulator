@@ -1,0 +1,9 @@
+{
+	"name": "@ant-colony-simulator/rust-backend",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "cargo run --release",
+		"build": "cargo build --release"
+	}
+}

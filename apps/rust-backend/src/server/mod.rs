@@ -1,3 +1,4 @@
+pub mod binary;
 pub mod messages;
 pub mod websocket;
 
@@ -10,15 +11,22 @@ use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-use websocket::{ws_handler, AppState, BroadcastTx};
+use websocket::{ws_handler, AppState, BroadcastTx, ControlTx};
 
 pub fn create_broadcast() -> BroadcastTx {
-    let (tx, _) = broadcast::channel::<String>(64);
+    let (tx, _) = broadcast::channel(256);
     tx
 }
 
-pub async fn start_server(addr: &str, broadcast_tx: BroadcastTx) -> anyhow::Result<()> {
-    let state = Arc::new(AppState { broadcast_tx });
+pub async fn start_server(
+    addr: &str,
+    broadcast_tx: BroadcastTx,
+    control_tx: ControlTx,
+) -> anyhow::Result<()> {
+    let state = Arc::new(AppState {
+        broadcast_tx,
+        control_tx,
+    });
 
     let app = Router::new()
         .route("/ws", get(ws_handler))

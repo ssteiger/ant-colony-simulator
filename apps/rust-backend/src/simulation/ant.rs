@@ -13,7 +13,7 @@ pub const ROLE_SOLDIER: u8 = 2;
 
 /// Structure-of-Arrays storage for all ant data.
 /// Each field is a parallel Vec indexed by the ant's slot.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AntStorage {
     pub count: usize,
     next_id: u32,

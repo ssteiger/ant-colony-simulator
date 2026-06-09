@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::terrain::Terrain;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum PheromoneType {
     Food,
@@ -8,13 +10,15 @@ pub enum PheromoneType {
 
 /// Grid-based pheromone field with separate layers per type.
 /// Much faster than storing individual trail entities.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PheromoneField {
     pub grid_w: usize,
     pub grid_h: usize,
     pub cell_size: f32,
     pub food: Vec<f32>,
     pub home: Vec<f32>,
+    /// 1 = cell lies inside solid terrain; no deposit or diffusion there.
+    pub blocked: Vec<u8>,
 }
 
 impl PheromoneField {
@@ -28,6 +32,18 @@ impl PheromoneField {
             cell_size,
             food: vec![0.0; size],
             home: vec![0.0; size],
+            blocked: vec![0; size],
+        }
+    }
+
+    /// Mark pheromone cells whose center lies inside solid terrain as blocked.
+    pub fn build_blocked_mask(&mut self, terrain: &Terrain) {
+        for gy in 0..self.grid_h {
+            for gx in 0..self.grid_w {
+                let x = (gx as f32 + 0.5) * self.cell_size;
+                let y = (gy as f32 + 0.5) * self.cell_size;
+                self.blocked[gy * self.grid_w + gx] = terrain.is_solid_at(x, y) as u8;
+            }
         }
     }
 
@@ -35,13 +51,6 @@ impl PheromoneField {
         match ptype {
             PheromoneType::Food => &self.food,
             PheromoneType::Home => &self.home,
-        }
-    }
-
-    fn layer_mut(&mut self, ptype: PheromoneType) -> &mut [f32] {
-        match ptype {
-            PheromoneType::Food => &mut self.food,
-            PheromoneType::Home => &mut self.home,
         }
     }
 
@@ -63,7 +72,13 @@ impl PheromoneField {
     pub fn deposit(&mut self, x: f32, y: f32, ptype: PheromoneType, amount: f32) {
         if let Some((gx, gy)) = self.to_grid(x, y) {
             let idx = self.idx(gx, gy);
-            let layer = self.layer_mut(ptype);
+            if self.blocked[idx] == 1 {
+                return;
+            }
+            let layer = match ptype {
+                PheromoneType::Food => &mut self.food,
+                PheromoneType::Home => &mut self.home,
+            };
             layer[idx] = (layer[idx] + amount).min(1.0);
         }
     }
@@ -131,18 +146,21 @@ impl PheromoneField {
     }
 
     pub fn diffuse(&mut self, rate: f32) {
-        diffuse_layer(&mut self.food, self.grid_w, self.grid_h, rate);
-        diffuse_layer(&mut self.home, self.grid_w, self.grid_h, rate);
+        diffuse_layer(&mut self.food, &self.blocked, self.grid_w, self.grid_h, rate);
+        diffuse_layer(&mut self.home, &self.blocked, self.grid_w, self.grid_h, rate);
     }
 }
 
-fn diffuse_layer(layer: &mut [f32], w: usize, h: usize, rate: f32) {
+fn diffuse_layer(layer: &mut [f32], blocked: &[u8], w: usize, h: usize, rate: f32) {
     let src: Vec<f32> = layer.to_vec();
     let keep = 1.0 - rate;
 
     for y in 0..h {
         for x in 0..w {
             let idx = y * w + x;
+            if blocked[idx] == 1 {
+                continue;
+            }
             let center = src[idx];
             if center < 0.0001 {
                 continue;
@@ -159,8 +177,11 @@ fn diffuse_layer(layer: &mut [f32], w: usize, h: usize, rate: f32) {
                     let nx = x as i32 + dx;
                     let ny = y as i32 + dy;
                     if nx >= 0 && ny >= 0 && (nx as usize) < w && (ny as usize) < h {
-                        sum += src[ny as usize * w + nx as usize];
-                        count += 1;
+                        let nidx = ny as usize * w + nx as usize;
+                        if blocked[nidx] == 0 {
+                            sum += src[nidx];
+                            count += 1;
+                        }
                     }
                 }
             }

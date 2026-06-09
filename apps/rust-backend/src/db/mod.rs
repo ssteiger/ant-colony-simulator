@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use sqlx::PgPool;
+use tracing::info;
 
 use crate::simulation::ant::AntStorage;
 use crate::simulation::colony::Colony;
 use crate::simulation::food::FoodSource;
 use crate::simulation::pheromone::PheromoneField;
+use crate::simulation::terrain::Terrain;
 use crate::simulation::SimulationState;
 
 /// Serializable snapshot of everything needed to resume a simulation.
@@ -16,6 +18,7 @@ pub struct CheckpointData {
     pub colonies: Vec<Colony>,
     pub food_sources: Vec<FoodSource>,
     pub pheromones: PheromoneField,
+    pub terrain: Terrain,
 }
 
 impl SimulationState {
@@ -23,10 +26,11 @@ impl SimulationState {
         CheckpointData {
             tick_count: self.tick_count,
             total_food_collected: self.total_food_collected,
-            ants: bincode_clone_ants(&self.ants),
+            ants: self.ants.clone(),
             colonies: self.colonies.clone(),
             food_sources: self.food_sources.clone(),
-            pheromones: bincode_clone_pheromones(&self.pheromones),
+            pheromones: self.pheromones.clone(),
+            terrain: self.terrain.clone(),
         }
     }
 
@@ -37,84 +41,110 @@ impl SimulationState {
         self.colonies = cp.colonies;
         self.food_sources = cp.food_sources;
         self.pheromones = cp.pheromones;
-        info!("Restored simulation from checkpoint at tick {}", self.tick_count);
+        self.terrain = cp.terrain;
+        info!(
+            "Restored simulation from checkpoint at tick {}",
+            self.tick_count
+        );
     }
 }
 
-fn bincode_clone_ants(a: &AntStorage) -> AntStorage {
-    let bytes = bincode::serialize(a).expect("serialize ants");
-    bincode::deserialize(&bytes).expect("deserialize ants")
+/// A row from the `simulations` table.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SimulationRow {
+    pub id: i32,
+    pub world_width: i32,
+    pub world_height: i32,
+    pub config: serde_json::Value,
 }
 
-fn bincode_clone_pheromones(p: &PheromoneField) -> PheromoneField {
-    let bytes = bincode::serialize(p).expect("serialize pheromones");
-    bincode::deserialize(&bytes).expect("deserialize pheromones")
-}
-
-pub async fn save_checkpoint(
-    pool: &sqlx::PgPool,
+pub async fn load_simulation_row(
+    pool: &PgPool,
     simulation_id: i32,
-    state: &SimulationState,
+) -> anyhow::Result<Option<SimulationRow>> {
+    let row = sqlx::query_as::<_, SimulationRow>(
+        "SELECT id, world_width, world_height, config FROM simulations WHERE id = $1",
+    )
+    .bind(simulation_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+pub async fn load_latest_active_simulation(
+    pool: &PgPool,
+) -> anyhow::Result<Option<SimulationRow>> {
+    let row = sqlx::query_as::<_, SimulationRow>(
+        "SELECT id, world_width, world_height, config FROM simulations WHERE is_active = true ORDER BY created_at DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+pub async fn save_checkpoint_blob(
+    pool: &PgPool,
+    simulation_id: i32,
+    tick: u64,
+    blob: &[u8],
+    summary: &serde_json::Value,
 ) -> anyhow::Result<()> {
-    let cp = state.to_checkpoint();
-    let blob = bincode::serialize(&cp)?;
-
-    let summary = serde_json::json!({
-        "tick": state.tick_count,
-        "ants": state.ants.count,
-        "colonies": state.colonies.len(),
-        "food_collected": state.total_food_collected,
-        "colony_food": state.colonies.iter().map(|c| c.food_stored).sum::<f32>(),
-    });
-
     sqlx::query(
         "INSERT INTO simulation_checkpoints (simulation_id, tick, state_blob, summary) VALUES ($1, $2, $3, $4)",
     )
     .bind(simulation_id)
-    .bind(state.tick_count as i64)
-    .bind(&blob)
-    .bind(&summary)
+    .bind(tick as i64)
+    .bind(blob)
+    .bind(summary)
+    .execute(pool)
+    .await?;
+
+    // keep only the 3 most recent checkpoints per simulation
+    sqlx::query(
+        "DELETE FROM simulation_checkpoints
+         WHERE simulation_id = $1
+           AND id NOT IN (
+               SELECT id FROM simulation_checkpoints
+               WHERE simulation_id = $1
+               ORDER BY tick DESC LIMIT 3
+           )",
+    )
+    .bind(simulation_id)
     .execute(pool)
     .await?;
 
     info!(
-        "Saved checkpoint: tick={} size={}KB",
-        state.tick_count,
+        "Saved checkpoint: sim={} tick={} size={}KB",
+        simulation_id,
+        tick,
         blob.len() / 1024
     );
     Ok(())
 }
 
 pub async fn save_stats(
-    pool: &sqlx::PgPool,
+    pool: &PgPool,
     simulation_id: i32,
-    state: &SimulationState,
+    tick: u64,
+    total_ants: i32,
+    food_collected: f32,
+    colony_stats: &serde_json::Value,
 ) -> anyhow::Result<()> {
-    let colony_stats = serde_json::json!(
-        state.colonies.iter().map(|c| {
-            serde_json::json!({
-                "id": c.id,
-                "food_stored": c.food_stored,
-            })
-        }).collect::<Vec<_>>()
-    );
-
     sqlx::query(
         "INSERT INTO simulation_stats (simulation_id, tick, total_ants, food_collected, colony_stats) VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(simulation_id)
-    .bind(state.tick_count as i64)
-    .bind(state.ants.count as i32)
-    .bind(state.total_food_collected)
-    .bind(&colony_stats)
+    .bind(tick as i64)
+    .bind(total_ants)
+    .bind(food_collected)
+    .bind(colony_stats)
     .execute(pool)
     .await?;
-
     Ok(())
 }
 
 pub async fn load_latest_checkpoint(
-    pool: &sqlx::PgPool,
+    pool: &PgPool,
     simulation_id: i32,
 ) -> anyhow::Result<Option<CheckpointData>> {
     let row: Option<(Vec<u8>,)> = sqlx::query_as(
@@ -127,12 +157,12 @@ pub async fn load_latest_checkpoint(
     match row {
         Some((blob,)) => {
             let cp: CheckpointData = bincode::deserialize(&blob)?;
-            info!("Loaded checkpoint at tick {}", cp.tick_count);
+            info!(
+                "Loaded checkpoint for sim {} at tick {}",
+                simulation_id, cp.tick_count
+            );
             Ok(Some(cp))
         }
-        None => {
-            warn!("No checkpoint found for simulation {}", simulation_id);
-            Ok(None)
-        }
+        None => Ok(None),
     }
 }

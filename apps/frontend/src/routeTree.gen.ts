@@ -11,376 +11,79 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as AuthenticatedImport } from './routes/_authenticated'
-import { Route as AuthenticatedAppImport } from './routes/_authenticated/_app'
-import { Route as AuthRegisterIndexImport } from './routes/auth/register/index'
-import { Route as AuthLoginIndexImport } from './routes/auth/login/index'
-import { Route as AuthenticatedAppIndexImport } from './routes/_authenticated/_app/index'
-import { Route as AuthenticatedAppSimulationIndexImport } from './routes/_authenticated/_app/simulation/index'
-import { Route as AuthenticatedAppSettingsIndexImport } from './routes/_authenticated/_app/settings/index'
-import { Route as AuthenticatedAppDashboardIndexImport } from './routes/_authenticated/_app/dashboard/index'
-import { Route as AuthenticatedAppAnalyticsIndexImport } from './routes/_authenticated/_app/analytics/index'
-import { Route as AuthenticatedAppSimulationIdImport } from './routes/_authenticated/_app/simulation/$id'
-import { Route as AuthenticatedAppSettingsNotificationsIndexImport } from './routes/_authenticated/_app/settings/notifications/index'
-import { Route as AuthenticatedAppSettingsDisplayIndexImport } from './routes/_authenticated/_app/settings/display/index'
-import { Route as AuthenticatedAppSettingsAppearanceIndexImport } from './routes/_authenticated/_app/settings/appearance/index'
-import { Route as AuthenticatedAppSettingsAccountIndexImport } from './routes/_authenticated/_app/settings/account/index'
+import { Route as IndexImport } from './routes/index'
+import { Route as SimulationIdImport } from './routes/simulation/$id'
 
 // Create/Update Routes
 
-const AuthenticatedRoute = AuthenticatedImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const AuthenticatedAppRoute = AuthenticatedAppImport.update({
-  id: '/_app',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-
-const AuthRegisterIndexRoute = AuthRegisterIndexImport.update({
-  id: '/auth/register/',
-  path: '/auth/register/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const AuthLoginIndexRoute = AuthLoginIndexImport.update({
-  id: '/auth/login/',
-  path: '/auth/login/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const AuthenticatedAppIndexRoute = AuthenticatedAppIndexImport.update({
+const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedAppRoute,
+  getParentRoute: () => rootRoute,
 } as any)
 
-const AuthenticatedAppSimulationIndexRoute =
-  AuthenticatedAppSimulationIndexImport.update({
-    id: '/simulation/',
-    path: '/simulation/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppSettingsIndexRoute =
-  AuthenticatedAppSettingsIndexImport.update({
-    id: '/settings/',
-    path: '/settings/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppDashboardIndexRoute =
-  AuthenticatedAppDashboardIndexImport.update({
-    id: '/dashboard/',
-    path: '/dashboard/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppAnalyticsIndexRoute =
-  AuthenticatedAppAnalyticsIndexImport.update({
-    id: '/analytics/',
-    path: '/analytics/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppSimulationIdRoute =
-  AuthenticatedAppSimulationIdImport.update({
-    id: '/simulation/$id',
-    path: '/simulation/$id',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppSettingsNotificationsIndexRoute =
-  AuthenticatedAppSettingsNotificationsIndexImport.update({
-    id: '/settings/notifications/',
-    path: '/settings/notifications/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppSettingsDisplayIndexRoute =
-  AuthenticatedAppSettingsDisplayIndexImport.update({
-    id: '/settings/display/',
-    path: '/settings/display/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppSettingsAppearanceIndexRoute =
-  AuthenticatedAppSettingsAppearanceIndexImport.update({
-    id: '/settings/appearance/',
-    path: '/settings/appearance/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-
-const AuthenticatedAppSettingsAccountIndexRoute =
-  AuthenticatedAppSettingsAccountIndexImport.update({
-    id: '/settings/account/',
-    path: '/settings/account/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
+const SimulationIdRoute = SimulationIdImport.update({
+  id: '/simulation/$id',
+  path: '/simulation/$id',
+  getParentRoute: () => rootRoute,
+} as any)
 
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof AuthenticatedImport
-      parentRoute: typeof rootRoute
-    }
-    '/_authenticated/_app': {
-      id: '/_authenticated/_app'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof AuthenticatedAppImport
-      parentRoute: typeof AuthenticatedImport
-    }
-    '/_authenticated/_app/': {
-      id: '/_authenticated/_app/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedAppIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/auth/login/': {
-      id: '/auth/login/'
-      path: '/auth/login'
-      fullPath: '/auth/login'
-      preLoaderRoute: typeof AuthLoginIndexImport
+      preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/auth/register/': {
-      id: '/auth/register/'
-      path: '/auth/register'
-      fullPath: '/auth/register'
-      preLoaderRoute: typeof AuthRegisterIndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/_authenticated/_app/simulation/$id': {
-      id: '/_authenticated/_app/simulation/$id'
+    '/simulation/$id': {
+      id: '/simulation/$id'
       path: '/simulation/$id'
       fullPath: '/simulation/$id'
-      preLoaderRoute: typeof AuthenticatedAppSimulationIdImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/analytics/': {
-      id: '/_authenticated/_app/analytics/'
-      path: '/analytics'
-      fullPath: '/analytics'
-      preLoaderRoute: typeof AuthenticatedAppAnalyticsIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/dashboard/': {
-      id: '/_authenticated/_app/dashboard/'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedAppDashboardIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/settings/': {
-      id: '/_authenticated/_app/settings/'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedAppSettingsIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/simulation/': {
-      id: '/_authenticated/_app/simulation/'
-      path: '/simulation'
-      fullPath: '/simulation'
-      preLoaderRoute: typeof AuthenticatedAppSimulationIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/settings/account/': {
-      id: '/_authenticated/_app/settings/account/'
-      path: '/settings/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof AuthenticatedAppSettingsAccountIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/settings/appearance/': {
-      id: '/_authenticated/_app/settings/appearance/'
-      path: '/settings/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof AuthenticatedAppSettingsAppearanceIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/settings/display/': {
-      id: '/_authenticated/_app/settings/display/'
-      path: '/settings/display'
-      fullPath: '/settings/display'
-      preLoaderRoute: typeof AuthenticatedAppSettingsDisplayIndexImport
-      parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/_app/settings/notifications/': {
-      id: '/_authenticated/_app/settings/notifications/'
-      path: '/settings/notifications'
-      fullPath: '/settings/notifications'
-      preLoaderRoute: typeof AuthenticatedAppSettingsNotificationsIndexImport
-      parentRoute: typeof AuthenticatedAppImport
+      preLoaderRoute: typeof SimulationIdImport
+      parentRoute: typeof rootRoute
     }
   }
 }
 
 // Create and export the route tree
 
-interface AuthenticatedAppRouteChildren {
-  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
-  AuthenticatedAppSimulationIdRoute: typeof AuthenticatedAppSimulationIdRoute
-  AuthenticatedAppAnalyticsIndexRoute: typeof AuthenticatedAppAnalyticsIndexRoute
-  AuthenticatedAppDashboardIndexRoute: typeof AuthenticatedAppDashboardIndexRoute
-  AuthenticatedAppSettingsIndexRoute: typeof AuthenticatedAppSettingsIndexRoute
-  AuthenticatedAppSimulationIndexRoute: typeof AuthenticatedAppSimulationIndexRoute
-  AuthenticatedAppSettingsAccountIndexRoute: typeof AuthenticatedAppSettingsAccountIndexRoute
-  AuthenticatedAppSettingsAppearanceIndexRoute: typeof AuthenticatedAppSettingsAppearanceIndexRoute
-  AuthenticatedAppSettingsDisplayIndexRoute: typeof AuthenticatedAppSettingsDisplayIndexRoute
-  AuthenticatedAppSettingsNotificationsIndexRoute: typeof AuthenticatedAppSettingsNotificationsIndexRoute
-}
-
-const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
-  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
-  AuthenticatedAppSimulationIdRoute: AuthenticatedAppSimulationIdRoute,
-  AuthenticatedAppAnalyticsIndexRoute: AuthenticatedAppAnalyticsIndexRoute,
-  AuthenticatedAppDashboardIndexRoute: AuthenticatedAppDashboardIndexRoute,
-  AuthenticatedAppSettingsIndexRoute: AuthenticatedAppSettingsIndexRoute,
-  AuthenticatedAppSimulationIndexRoute: AuthenticatedAppSimulationIndexRoute,
-  AuthenticatedAppSettingsAccountIndexRoute:
-    AuthenticatedAppSettingsAccountIndexRoute,
-  AuthenticatedAppSettingsAppearanceIndexRoute:
-    AuthenticatedAppSettingsAppearanceIndexRoute,
-  AuthenticatedAppSettingsDisplayIndexRoute:
-    AuthenticatedAppSettingsDisplayIndexRoute,
-  AuthenticatedAppSettingsNotificationsIndexRoute:
-    AuthenticatedAppSettingsNotificationsIndexRoute,
-}
-
-const AuthenticatedAppRouteWithChildren =
-  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
-
-interface AuthenticatedRouteChildren {
-  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
-}
-
-const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
-}
-
-const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
-  AuthenticatedRouteChildren,
-)
-
 export interface FileRoutesByFullPath {
-  '': typeof AuthenticatedAppRouteWithChildren
-  '/': typeof AuthenticatedAppIndexRoute
-  '/auth/login': typeof AuthLoginIndexRoute
-  '/auth/register': typeof AuthRegisterIndexRoute
-  '/simulation/$id': typeof AuthenticatedAppSimulationIdRoute
-  '/analytics': typeof AuthenticatedAppAnalyticsIndexRoute
-  '/dashboard': typeof AuthenticatedAppDashboardIndexRoute
-  '/settings': typeof AuthenticatedAppSettingsIndexRoute
-  '/simulation': typeof AuthenticatedAppSimulationIndexRoute
-  '/settings/account': typeof AuthenticatedAppSettingsAccountIndexRoute
-  '/settings/appearance': typeof AuthenticatedAppSettingsAppearanceIndexRoute
-  '/settings/display': typeof AuthenticatedAppSettingsDisplayIndexRoute
-  '/settings/notifications': typeof AuthenticatedAppSettingsNotificationsIndexRoute
+  '/': typeof IndexRoute
+  '/simulation/$id': typeof SimulationIdRoute
 }
 
 export interface FileRoutesByTo {
-  '': typeof AuthenticatedRouteWithChildren
-  '/': typeof AuthenticatedAppIndexRoute
-  '/auth/login': typeof AuthLoginIndexRoute
-  '/auth/register': typeof AuthRegisterIndexRoute
-  '/simulation/$id': typeof AuthenticatedAppSimulationIdRoute
-  '/analytics': typeof AuthenticatedAppAnalyticsIndexRoute
-  '/dashboard': typeof AuthenticatedAppDashboardIndexRoute
-  '/settings': typeof AuthenticatedAppSettingsIndexRoute
-  '/simulation': typeof AuthenticatedAppSimulationIndexRoute
-  '/settings/account': typeof AuthenticatedAppSettingsAccountIndexRoute
-  '/settings/appearance': typeof AuthenticatedAppSettingsAppearanceIndexRoute
-  '/settings/display': typeof AuthenticatedAppSettingsDisplayIndexRoute
-  '/settings/notifications': typeof AuthenticatedAppSettingsNotificationsIndexRoute
+  '/': typeof IndexRoute
+  '/simulation/$id': typeof SimulationIdRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
-  '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/_authenticated/_app': typeof AuthenticatedAppRouteWithChildren
-  '/_authenticated/_app/': typeof AuthenticatedAppIndexRoute
-  '/auth/login/': typeof AuthLoginIndexRoute
-  '/auth/register/': typeof AuthRegisterIndexRoute
-  '/_authenticated/_app/simulation/$id': typeof AuthenticatedAppSimulationIdRoute
-  '/_authenticated/_app/analytics/': typeof AuthenticatedAppAnalyticsIndexRoute
-  '/_authenticated/_app/dashboard/': typeof AuthenticatedAppDashboardIndexRoute
-  '/_authenticated/_app/settings/': typeof AuthenticatedAppSettingsIndexRoute
-  '/_authenticated/_app/simulation/': typeof AuthenticatedAppSimulationIndexRoute
-  '/_authenticated/_app/settings/account/': typeof AuthenticatedAppSettingsAccountIndexRoute
-  '/_authenticated/_app/settings/appearance/': typeof AuthenticatedAppSettingsAppearanceIndexRoute
-  '/_authenticated/_app/settings/display/': typeof AuthenticatedAppSettingsDisplayIndexRoute
-  '/_authenticated/_app/settings/notifications/': typeof AuthenticatedAppSettingsNotificationsIndexRoute
+  '/': typeof IndexRoute
+  '/simulation/$id': typeof SimulationIdRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | ''
-    | '/'
-    | '/auth/login'
-    | '/auth/register'
-    | '/simulation/$id'
-    | '/analytics'
-    | '/dashboard'
-    | '/settings'
-    | '/simulation'
-    | '/settings/account'
-    | '/settings/appearance'
-    | '/settings/display'
-    | '/settings/notifications'
+  fullPaths: '/' | '/simulation/$id'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | ''
-    | '/'
-    | '/auth/login'
-    | '/auth/register'
-    | '/simulation/$id'
-    | '/analytics'
-    | '/dashboard'
-    | '/settings'
-    | '/simulation'
-    | '/settings/account'
-    | '/settings/appearance'
-    | '/settings/display'
-    | '/settings/notifications'
-  id:
-    | '__root__'
-    | '/_authenticated'
-    | '/_authenticated/_app'
-    | '/_authenticated/_app/'
-    | '/auth/login/'
-    | '/auth/register/'
-    | '/_authenticated/_app/simulation/$id'
-    | '/_authenticated/_app/analytics/'
-    | '/_authenticated/_app/dashboard/'
-    | '/_authenticated/_app/settings/'
-    | '/_authenticated/_app/simulation/'
-    | '/_authenticated/_app/settings/account/'
-    | '/_authenticated/_app/settings/appearance/'
-    | '/_authenticated/_app/settings/display/'
-    | '/_authenticated/_app/settings/notifications/'
+  to: '/' | '/simulation/$id'
+  id: '__root__' | '/' | '/simulation/$id'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
-  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  AuthLoginIndexRoute: typeof AuthLoginIndexRoute
-  AuthRegisterIndexRoute: typeof AuthRegisterIndexRoute
+  IndexRoute: typeof IndexRoute
+  SimulationIdRoute: typeof SimulationIdRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  AuthLoginIndexRoute: AuthLoginIndexRoute,
-  AuthRegisterIndexRoute: AuthRegisterIndexRoute,
+  IndexRoute: IndexRoute,
+  SimulationIdRoute: SimulationIdRoute,
 }
 
 export const routeTree = rootRoute
@@ -393,78 +96,15 @@ export const routeTree = rootRoute
     "__root__": {
       "filePath": "__root.tsx",
       "children": [
-        "/_authenticated",
-        "/auth/login/",
-        "/auth/register/"
+        "/",
+        "/simulation/$id"
       ]
     },
-    "/_authenticated": {
-      "filePath": "_authenticated.tsx",
-      "children": [
-        "/_authenticated/_app"
-      ]
+    "/": {
+      "filePath": "index.tsx"
     },
-    "/_authenticated/_app": {
-      "filePath": "_authenticated/_app.tsx",
-      "parent": "/_authenticated",
-      "children": [
-        "/_authenticated/_app/",
-        "/_authenticated/_app/simulation/$id",
-        "/_authenticated/_app/analytics/",
-        "/_authenticated/_app/dashboard/",
-        "/_authenticated/_app/settings/",
-        "/_authenticated/_app/simulation/",
-        "/_authenticated/_app/settings/account/",
-        "/_authenticated/_app/settings/appearance/",
-        "/_authenticated/_app/settings/display/",
-        "/_authenticated/_app/settings/notifications/"
-      ]
-    },
-    "/_authenticated/_app/": {
-      "filePath": "_authenticated/_app/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/auth/login/": {
-      "filePath": "auth/login/index.tsx"
-    },
-    "/auth/register/": {
-      "filePath": "auth/register/index.tsx"
-    },
-    "/_authenticated/_app/simulation/$id": {
-      "filePath": "_authenticated/_app/simulation/$id.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/analytics/": {
-      "filePath": "_authenticated/_app/analytics/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/dashboard/": {
-      "filePath": "_authenticated/_app/dashboard/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/settings/": {
-      "filePath": "_authenticated/_app/settings/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/simulation/": {
-      "filePath": "_authenticated/_app/simulation/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/settings/account/": {
-      "filePath": "_authenticated/_app/settings/account/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/settings/appearance/": {
-      "filePath": "_authenticated/_app/settings/appearance/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/settings/display/": {
-      "filePath": "_authenticated/_app/settings/display/index.tsx",
-      "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/_app/settings/notifications/": {
-      "filePath": "_authenticated/_app/settings/notifications/index.tsx",
-      "parent": "/_authenticated/_app"
+    "/simulation/$id": {
+      "filePath": "simulation/$id.tsx"
     }
   }
 }

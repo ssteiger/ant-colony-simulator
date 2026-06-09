@@ -1,5 +1,50 @@
 use std::f32::consts::PI;
 
+use super::terrain::Terrain;
+
+/// Probe the terrain ahead of the ant (center + two whiskers). If a wall is
+/// detected, returns a steering vector toward the most open direction.
+pub fn wall_avoidance(
+    terrain: &Terrain,
+    x: f32,
+    y: f32,
+    heading: f32,
+    probe_dist: f32,
+) -> Option<(f32, f32)> {
+    let probe = |angle: f32, dist: f32| -> bool {
+        terrain.is_solid_at(x + angle.cos() * dist, y + angle.sin() * dist)
+    };
+
+    let center = probe(heading, probe_dist);
+    let left = probe(heading - 0.7, probe_dist * 0.85);
+    let right = probe(heading + 0.7, probe_dist * 0.85);
+
+    if !center && !left && !right {
+        return None;
+    }
+
+    if center {
+        // wall straight ahead: find the most open escape direction
+        for &a in &[
+            heading - 1.3,
+            heading + 1.3,
+            heading - 2.2,
+            heading + 2.2,
+            heading + PI,
+        ] {
+            if !probe(a, probe_dist * 0.85) {
+                return Some((a.cos(), a.sin()));
+            }
+        }
+        let back = heading + PI;
+        return Some((back.cos(), back.sin()));
+    }
+
+    // only a whisker hit: nudge away from the blocked side
+    let away = if left { heading + 0.9 } else { heading - 0.9 };
+    Some((away.cos(), away.sin()))
+}
+
 /// Craig Reynolds-style wander: small random perturbation of heading each tick.
 /// Returns (dx, dy) unit direction vector.
 pub fn wander_direction(
@@ -55,11 +100,4 @@ pub fn normalize_angle(angle: f32) -> f32 {
         a += 2.0 * PI;
     }
     a
-}
-
-/// Levy flight: returns true if a long-distance jump should occur this tick.
-/// When it triggers, a random heading and a speed boost are applied.
-/// `rng_val` should be uniform [0,1).
-pub fn levy_should_jump(rng_val: f32, cooldown: u32) -> bool {
-    cooldown == 0 && rng_val < 0.003
 }
