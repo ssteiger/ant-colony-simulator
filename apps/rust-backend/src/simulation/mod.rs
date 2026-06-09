@@ -104,6 +104,10 @@ impl SimulationState {
             config.pheromone_cell_size,
         );
         pheromones.build_blocked_mask(&terrain);
+        // Anchor the home gradient to the nest(s) as a static radial field, so
+        // returning is true navigation rather than following a density blob.
+        let colony_positions: Vec<(f32, f32)> = colonies.iter().map(|c| (c.x, c.y)).collect();
+        pheromones.seed_home_field(&colony_positions);
 
         // ── initial ants: 70% worker, 20% scout, 10% soldier ───────────
         let mut ants = AntStorage::new();
@@ -168,6 +172,15 @@ impl SimulationState {
                 if self.food_sources[j].amount >= 1.0 {
                     self.food_sources[j].amount -= 1.0;
                     self.ants.cargo[i] = 1.0;
+                    // Capture source richness (fraction remaining) so the
+                    // recruitment trail laid on the way back is strong for rich
+                    // sources and fades as the source is depleted.
+                    let fs = &self.food_sources[j];
+                    self.ants.cargo_quality[i] = if fs.max_amount > 0.0 {
+                        (fs.amount / fs.max_amount).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
                     self.ants.state[i] = AntState::Returning;
                 }
             } else if m.deposited >= 0 {
@@ -178,8 +191,6 @@ impl SimulationState {
                 self.ants.state[i] = AntState::Foraging;
                 self.ants.home_vec_x[i] = 0.0;
                 self.ants.home_vec_y[i] = 0.0;
-                self.ants.energy[i] =
-                    (self.ants.energy[i] + self.config.ant_energy_food_restore).min(100.0);
             }
 
             self.ants.home_vec_x[i] += m.x - self.ants.pos_x[i];
@@ -192,33 +203,61 @@ impl SimulationState {
             self.ants.wander_angle[i] = m.wander_angle;
             self.ants.levy_cooldown[i] = m.levy_cooldown;
 
-            match self.ants.state[i] {
-                AntState::Foraging => self.pheromones.deposit(
-                    m.x,
-                    m.y,
-                    PheromoneType::Home,
-                    self.config.pheromone_home_deposit,
-                ),
-                AntState::Returning => self.pheromones.deposit(
+            // Only ants returning with food lay a recruitment (food) trail, and
+            // its strength scales with the richness of the source they found.
+            // Foraging wanderers lay nothing — the home gradient is the static
+            // field seeded at startup, not something emitted while wandering.
+            if self.ants.state[i] == AntState::Returning {
+                self.pheromones.deposit(
                     m.x,
                     m.y,
                     PheromoneType::Food,
-                    self.config.pheromone_food_deposit,
-                ),
+                    self.config.pheromone_food_deposit * self.ants.cargo_quality[i],
+                );
             }
         }
 
-        // ── phase 3: energy decay and death ────────────────────────────
+        // ── phase 3: colony upkeep (trophallaxis), aging, and death ────
+        // Workers no longer starve individually on a foraging trip. Instead the
+        // colony feeds its population from stored food each tick: while the
+        // reserve can cover an ant's upkeep its vitality recovers, otherwise it
+        // drains — so a colony that can't forage enough will collapse. Ants also
+        // die of old age once they pass their (slightly randomized) lifespan.
+        let upkeep = self.config.colony_upkeep_per_ant;
+        let mut colony_food: Vec<f32> = self.colonies.iter().map(|c| c.food_stored).collect();
+
         let mut i = 0;
         while i < self.ants.count {
-            self.ants.energy[i] -= self.config.ant_energy_decay_per_tick;
             self.ants.age[i] += 1;
-            if self.ants.energy[i] <= 0.0 {
+
+            let fed = match self.colonies.iter().position(|c| c.id == self.ants.colony_id[i]) {
+                Some(ci) if colony_food[ci] >= upkeep => {
+                    colony_food[ci] -= upkeep;
+                    true
+                }
+                _ => false,
+            };
+
+            if fed {
+                self.ants.energy[i] =
+                    (self.ants.energy[i] + self.config.ant_feed_recovery).min(100.0);
+            } else {
+                self.ants.energy[i] -= self.config.ant_starve_damage;
+            }
+
+            let lifespan = self.config.ant_lifespan_ticks
+                + (self.ants.id[i] as u64 % self.config.ant_lifespan_variation.max(1));
+
+            if self.ants.energy[i] <= 0.0 || self.ants.age[i] >= lifespan {
                 self.ants.remove(i);
                 // swap_remove: re-process the swapped-in element at i
             } else {
                 i += 1;
             }
+        }
+
+        for (ci, c) in self.colonies.iter_mut().enumerate() {
+            c.food_stored = colony_food[ci];
         }
 
         self.spawn_ants();

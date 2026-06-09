@@ -16,7 +16,6 @@ pub struct SimConfig {
     pub ant_detection_radius: f32,
 
     pub pheromone_cell_size: f32,
-    pub pheromone_home_deposit: f32,
     pub pheromone_food_deposit: f32,
     pub pheromone_evaporation: f32,
     pub pheromone_diffusion_rate: f32,
@@ -32,8 +31,16 @@ pub struct SimConfig {
 
     pub boundary_margin: f32,
 
-    pub ant_energy_decay_per_tick: f32,
-    pub ant_energy_food_restore: f32,
+    /// Colony food consumed per living ant per tick (trophallaxis upkeep).
+    pub colony_upkeep_per_ant: f32,
+    /// Vitality regained per tick while the colony can feed the ant.
+    pub ant_feed_recovery: f32,
+    /// Vitality lost per tick when the colony has no food to spare.
+    pub ant_starve_damage: f32,
+    /// Base worker lifespan in ticks; ants die of old age past this.
+    pub ant_lifespan_ticks: u64,
+    /// Per-ant random spread added to the base lifespan.
+    pub ant_lifespan_variation: u64,
     pub colony_spawn_cost: f32,
     pub colony_spawn_interval: u64,
     pub colony_spawn_batch: usize,
@@ -66,7 +73,6 @@ impl Default for SimConfig {
             ant_detection_radius: 50.0,
 
             pheromone_cell_size: 8.0,
-            pheromone_home_deposit: 0.008,
             pheromone_food_deposit: 0.03,
             pheromone_evaporation: 0.996,
             pheromone_diffusion_rate: 0.08,
@@ -82,8 +88,14 @@ impl Default for SimConfig {
 
             boundary_margin: 40.0,
 
-            ant_energy_decay_per_tick: 0.004,
-            ant_energy_food_restore: 50.0,
+            // Upkeep is negligible for a well-fed colony (so ants normally die
+            // of old age) but becomes fatal if foraging income dries up,
+            // letting a starved colony collapse.
+            colony_upkeep_per_ant: 0.0003,
+            ant_feed_recovery: 0.05,
+            ant_starve_damage: 0.02,
+            ant_lifespan_ticks: 27_000,
+            ant_lifespan_variation: 9_000,
             colony_spawn_cost: 2.0,
             colony_spawn_interval: 30,
             colony_spawn_batch: 8,

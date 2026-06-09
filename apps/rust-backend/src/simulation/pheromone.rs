@@ -47,6 +47,49 @@ impl PheromoneField {
         }
     }
 
+    /// Seed a static radial "home" gradient anchored to the colonies. The field
+    /// is strongest at a nest and falls off linearly with distance, so a
+    /// returning ant can always climb the gradient back toward the nearest nest.
+    ///
+    /// Unlike the food layer, this is navigation infrastructure: it is computed
+    /// once and intentionally excluded from evaporation and diffusion. This
+    /// replaces the previous behavior where wandering ants emitted home
+    /// pheromone, which made the "home" field a population-density blob rather
+    /// than real directional information.
+    pub fn seed_home_field(&mut self, colonies: &[(f32, f32)]) {
+        if colonies.is_empty() {
+            return;
+        }
+        let world_w = self.grid_w as f32 * self.cell_size;
+        let world_h = self.grid_h as f32 * self.cell_size;
+        // Range spans the world diagonal so every reachable cell keeps a
+        // positive, detectable gradient toward the nest.
+        let range = (world_w * world_w + world_h * world_h).sqrt();
+
+        for gy in 0..self.grid_h {
+            for gx in 0..self.grid_w {
+                let idx = self.idx(gx, gy);
+                if self.blocked[idx] == 1 {
+                    self.home[idx] = 0.0;
+                    continue;
+                }
+                let cx = (gx as f32 + 0.5) * self.cell_size;
+                let cy = (gy as f32 + 0.5) * self.cell_size;
+                let mut best = 0.0f32;
+                for &(colx, coly) in colonies {
+                    let dx = cx - colx;
+                    let dy = cy - coly;
+                    let d = (dx * dx + dy * dy).sqrt();
+                    let v = (1.0 - d / range).max(0.0);
+                    if v > best {
+                        best = v;
+                    }
+                }
+                self.home[idx] = best;
+            }
+        }
+    }
+
     fn layer(&self, ptype: PheromoneType) -> &[f32] {
         match ptype {
             PheromoneType::Food => &self.food,
@@ -136,18 +179,17 @@ impl PheromoneField {
         }
     }
 
+    /// Evaporate the food (recruitment) layer. The home layer is a static
+    /// gradient seeded by `seed_home_field` and is intentionally left untouched.
     pub fn evaporate(&mut self, factor: f32) {
         for v in &mut self.food {
             *v *= factor;
         }
-        for v in &mut self.home {
-            *v *= factor;
-        }
     }
 
+    /// Diffuse the food layer only; the home layer is static infrastructure.
     pub fn diffuse(&mut self, rate: f32) {
         diffuse_layer(&mut self.food, &self.blocked, self.grid_w, self.grid_h, rate);
-        diffuse_layer(&mut self.home, &self.blocked, self.grid_w, self.grid_h, rate);
     }
 }
 

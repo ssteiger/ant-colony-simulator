@@ -31,6 +31,9 @@ pub struct AntStorage {
     pub ant_type: Vec<u8>,
 
     pub cargo: Vec<f32>,
+    /// Richness [0,1] of the food source this ant's cargo came from, captured at
+    /// pickup. Scales the strength of the recruitment trail laid while returning.
+    pub cargo_quality: Vec<f32>,
     pub energy: Vec<f32>,
     pub health: Vec<f32>,
     pub age: Vec<u64>,
@@ -57,6 +60,7 @@ impl AntStorage {
             colony_id: Vec::new(),
             ant_type: Vec::new(),
             cargo: Vec::new(),
+            cargo_quality: Vec::new(),
             energy: Vec::new(),
             health: Vec::new(),
             age: Vec::new(),
@@ -91,6 +95,7 @@ impl AntStorage {
         self.colony_id.push(colony_id);
         self.ant_type.push(ant_type);
         self.cargo.push(0.0);
+        self.cargo_quality.push(0.0);
         self.energy.push(100.0);
         self.health.push(100.0);
         self.age.push(0);
@@ -116,6 +121,7 @@ impl AntStorage {
         self.colony_id.swap_remove(i);
         self.ant_type.swap_remove(i);
         self.cargo.swap_remove(i);
+        self.cargo_quality.swap_remove(i);
         self.energy.swap_remove(i);
         self.health.swap_remove(i);
         self.age.swap_remove(i);
